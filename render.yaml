@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: go-driver-api
+    env: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # The rest of the keys (like MONGO_URI, JWT_SECRET, etc)
+      # should be added directly in the Render Dashboard -> Environment.

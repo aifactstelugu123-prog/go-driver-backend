@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Driver - Google Login Fix</title>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #0a0e1a;
+            color: white;
+            margin: 0;
+        }
+
+        .card {
+            background: #111827;
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            text-align: center;
+            max-width: 360px;
+            width: 90%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            margin: 0;
+            color: #00d4aa;
+        }
+
+        p {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin: 10px 0 25px;
+        }
+
+        .btn {
+            background: white;
+            color: black;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 1rem;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+        }
+
+        .btn:hover {
+            background: #f3f4f6;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .error {
+            color: #ef4444;
+            font-size: 0.85rem;
+            margin-top: 15px;
+            background: rgba(239, 68, 68, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            display: none;
+        }
+
+        #user-info {
+            display: none;
+            margin-top: 25px;
+            text-align: left;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .user-field {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .user-field strong {
+            color: #94a3b8;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="card">
+        <div class="logo">🚗</div>
+        <h2>Go Driver</h2>
+        <p>Sign in with Google to continue</p>
+
+        <button id="login-btn" class="btn">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
+            Sign in with Google
+        </button>
+
+        <div id="error-msg" class="error"></div>
+
+        <div id="user-info">
+            <div class="user-field"><strong>Name:</strong> <span id="user-name"></span></div>
+            <div class="user-field"><strong>Email:</strong> <span id="user-email"></span></div>
+            <button onclick="logout()" class="btn"
+                style="background: transparent; border: 1px solid #94a3b8; color: #94a3b8; margin-top: 15px;">Sign
+                Out</button>
+        </div>
+    </div>
+
+    <script>
+        // 1. FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyCj6z-6uqOI7YjwGa_sPCR2QMXyg4MtWXc",
+            authDomain: "go-driver-7a978.firebaseapp.com",
+            projectId: "go-driver-7a978",
+            storageBucket: "go-driver-7a978.firebasestorage.app",
+            messagingSenderId: "11665971173",
+            appId: "1:11665971173:web:39ea8066095424da5dc10c"
+        };
+
+        // 2. INITIALIZE FIREBASE
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        const loginBtn = document.getElementById('login-btn');
+        const errorDiv = document.getElementById('error-msg');
+        const userInfo = document.getElementById('user-info');
+
+        // 3. HANDLE REDIRECT RESULT (Required for Mobile)
+        auth.getRedirectResult().then((result) => {
+            if (result && result.user) {
+                showUser(result.user);
+            } else {
+                // Check if user is already logged in
+                const user = auth.currentUser;
+                if (user) showUser(user);
+            }
+        }).catch((error) => {
+            console.error("Redirect Error:", error);
+            showError(error.message);
+        });
+
+        // 4. MAIN LOGIN FUNCTION
+        loginBtn.onclick = async () => {
+            loginBtn.disabled = true;
+            errorDiv.style.display = 'none';
+
+            // Mobile detection
+            const isMobile = /iPhone|iPad|iPod|Android|KAIOS|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+            try {
+                if (isMobile) {
+                    // REDIRECT FOR MOBILE browsers
+                    await auth.signInWithRedirect(provider);
+                } else {
+                    // POPUP FOR DESKTOP
+                    const result = await auth.signInWithPopup(provider);
+                    showUser(result.user);
+                }
+            } catch (error) {
+                console.error("Login failed:", error);
+                showError(error.message);
+                loginBtn.disabled = false;
+            }
+        };
+
+        function showUser(user) {
+            userInfo.style.display = 'block';
+            loginBtn.style.display = 'none';
+            document.getElementById('user-name').innerText = user.displayName || "Unknown";
+            document.getElementById('user-email').innerText = user.email || "No Email";
+        }
+
+        function showError(msg) {
+            errorDiv.innerText = msg;
+            errorDiv.style.display = 'block';
+            loginBtn.disabled = false;
+        }
+
+        function logout() {
+            auth.signOut().then(() => {
+                location.reload();
+            });
+        }
+    </script>
+
+</body>
+
+</html>
