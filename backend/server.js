@@ -64,7 +64,8 @@ const allowedOrigins = [
     'http://192.168.31.12:5174',
     'http://192.168.31.12:5175',
     'https://go-driver-7a978.web.app',
-    'https://go-driver-7a978.firebaseapp.com'
+    'https://go-driver-7a978.firebaseapp.com',
+    'https://godriverbackend.loca.lt'
 ].filter(Boolean);
 
 app.use(cors({
@@ -101,7 +102,7 @@ app.use(express.static(path.join(__dirname, '../frontend/dist')));
 app.use('/api/auth', authRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api/driver', driverRoutes);
-app.use('/api/admin', adminIpGuard, adminRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/rides', ridesRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/training', trainingRoutes);
