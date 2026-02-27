@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import Sidebar from '../../components/Sidebar';
 import RideAlertModal from '../../components/RideAlertModal';
-import { getDriverProfile, getSubscriptionStatus, claimFreeTrial, acceptRide, setDriverOffline, acceptTnC } from '../../services/api';
+import { getDriverProfile, getSubscriptionStatus, claimFreeTrial, acceptRide, setDriverOnline, setDriverOffline, acceptTnC } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 export default function DriverDashboard() {
@@ -106,6 +106,37 @@ export default function DriverDashboard() {
         setSavingTnC(false);
     };
 
+    const [isReading, setIsReading] = useState(false);
+
+    const playAudio = (lang) => {
+        window.speechSynthesis.cancel();
+        let text = '';
+        if (lang === 'te') {
+            text = "వినండి. డ్రైవర్ నియమాలు. ఒకటి: డ్యూటీలో ఉన్నప్పుడు తప్పనిసరిగా యూనిఫామ్ మరియు సీట్ బెల్ట్ ధరించాలి. " +
+                "రెండు: ట్రాఫిక్ రూల్స్ పాటిస్తూ నడపాలి. ఒకవేళ రూల్స్ బ్రేక్ చేసి ఫైన్ పడితే పూర్తిగా మీదే బాధ్యత. " +
+                "మూడు: యాప్ కు కట్టాల్సిన కమిషన్ లేదా సబ్స్క్రిప్షన్ ఫీజు కరెక్ట్ గా కట్టాలి. " +
+                "నాలుగు: కస్టమర్లతో మరియు ఓనర్లతో మర్యాదగా ప్రవర్తించాలి. జాగ్రత్తగా డ్రైవ్ చేయాలి.";
+        } else if (lang === 'hi') {
+            text = "ध्यान दें। ड्राइवर नियम। पहला: ड्यूटी के दौरान यूनिफार्म और सीट बेल्ट अनिवार्य है। " +
+                "दूसरा: ट्रैफिक नियमों का कड़ाई से पालन करें। अगर आपके कारण कोई फाईन या चालान आता है, तो वह आपको ही भरना होगा। " +
+                "तीसरा: ऐप का कमीशन या सब्सक्रिप्शन फीस समय पर जमा करें। " +
+                "चौथा: ग्राहकों और मालिकों के साथ सम्मान से पेश आएं। सुरक्षित ड्राइव करें।";
+        }
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang === 'te' ? 'te-IN' : 'hi-IN';
+        utterance.rate = 0.9;
+        utterance.onstart = () => setIsReading(true);
+        utterance.onend = () => setIsReading(false);
+        utterance.onerror = () => setIsReading(false);
+        window.speechSynthesis.speak(utterance);
+    };
+
+    const stopAudio = () => {
+        window.speechSynthesis.cancel();
+        setIsReading(false);
+    };
+
     const subPercentage = subStatus?.rideLimit > 0 ? Math.round((subStatus.ridesAssigned / subStatus.rideLimit) * 100) : 0;
 
     return (
@@ -116,17 +147,29 @@ export default function DriverDashboard() {
                 {showTnC && (
                     <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                         <div className="glass-card" style={{ maxWidth: 500, width: '100%', padding: 40, background: 'var(--bg-secondary)', border: '2px solid var(--accent-teal)' }}>
-                            <h2 style={{ color: 'var(--text-primary)', marginBottom: 16 }}>Terms & Conditions</h2>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                                <h2 style={{ color: 'var(--text-primary)' }}>Terms & Conditions</h2>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    {isReading ? (
+                                        <button className="btn btn-secondary btn-sm" onClick={stopAudio} style={{ padding: '4px 8px', fontSize: '0.75rem', background: 'rgba(239,68,68,0.2)', color: '#ef4444', borderColor: '#ef4444' }}>⏹️ Stop Audio</button>
+                                    ) : (
+                                        <>
+                                            <button className="btn btn-secondary btn-sm" onClick={() => playAudio('te')} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>🔊 తెలుగు</button>
+                                            <button className="btn btn-secondary btn-sm" onClick={() => playAudio('hi')} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>🔊 हिंदी</button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
                             <div style={{ maxHeight: 300, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 8, marginBottom: 20, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                                <p>Welcome to Driver-as-a-Service (DaaS).</p>
+                                <p>Welcome to <strong>Go Driver</strong>. Please read our mandatory guidelines carefully before starting.</p>
                                 <br />
-                                <p><strong>1. Driver Responsibilities:</strong> You agree to maintain a valid driving license, drive safely, and adhere to all local traffic laws. You are responsible for any fines incurred during a ride due to your negligence.</p>
+                                <p><strong>1. Driver Dress Code & Safety:</strong> You MUST wear a proper uniform while on duty. Wearing your seatbelt is strictly mandatory at all times. Safety is our top priority.</p>
                                 <br />
-                                <p><strong>2. Platform Fees:</strong> DaaS charges a commission or requires an active subscription flat-fee according to the plans selected.</p>
+                                <p><strong>2. Traffic Rules & Penalties:</strong> You must strictly follow all Indian traffic rules, signals, and speed limits. ⚠️ <strong>Note:</strong> If you violate any traffic rule during a ride (e.g., jumping a signal, over-speeding) and a challan/fine is issued, <strong>YOU (the driver) are entirely responsible for paying that fine.</strong> The owner will not bear the cost of your negligence.</p>
                                 <br />
-                                <p><strong>3. Conduct:</strong> You agree to maintain professional conduct with vehicle owners and customers.</p>
+                                <p><strong>3. Payments & Earnings:</strong> You will earn the base hourly fare/block fare directly from the owner/customer. However, a small percent commission (as defined by the platform) may be deducted for using this service, or you must maintain an active subscription plan to receive unlimited ride alerts. Return journey charges (if applicable) are paid directly to you.</p>
                                 <br />
-                                <p><strong>4. Termination:</strong> DaaS reserves the right to suspend or terminate your account for violations of these terms, poor ratings, or safety concerns.</p>
+                                <p><strong>4. Professional Conduct:</strong> Treat the vehicle with utmost care and be polite to the owners. Any damage caused by reckless driving will be investigated and may lead to immediate termination and legal action.</p>
                             </div>
                             <div className="form-checkbox-group" style={{ marginBottom: 24, padding: 8, background: 'rgba(0,212,170,0.05)', borderRadius: 8, border: '1px solid rgba(0,212,170,0.2)' }}>
                                 <input type="checkbox" id="driverTnc" className="form-checkbox" checked={agreedToTnC} onChange={(e) => setAgreedToTnC(e.target.checked)} />
