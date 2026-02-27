@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import PermissionGuard from './components/PermissionGuard';
 
 // Auth Pages
 import Login from './pages/auth/Login';
@@ -39,7 +40,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (loading) return <div className="loading-screen"><div className="spinner" /><p>Loading...</p></div>;
     if (!role) return <Navigate to="/login" replace />;
     if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/login" replace />;
-    return children;
+
+    // Only request location/camera permissions for Driver & Owner (Admin doesn't need them)
+    if (role === 'admin') return children;
+
+    return <PermissionGuard>{children}</PermissionGuard>;
 };
 
 function App() {

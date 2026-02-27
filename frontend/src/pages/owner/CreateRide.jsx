@@ -187,13 +187,19 @@ export default function CreateRide() {
                         <div className="glass-card" style={{ padding: 24 }}>
                             <h3 style={{ marginBottom: 16 }}>💰 Fare Estimate</h3>
                             <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 8 }}>Hourly Rate</div>
-                                <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--accent-teal)' }}>₹{hourlyRate}</div>
-                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>per hour</div>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                                    {vehicleType === 'Heavy Vehicle' ? 'Block Rate' : 'Hourly Rate'}
+                                </div>
+                                <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--accent-teal)' }}>
+                                    {vehicleType === 'Heavy Vehicle' ? '₹1200' : `₹${hourlyRate}`}
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                    {vehicleType === 'Heavy Vehicle' ? 'per 8 hours (₹150/hr after)' : 'per hour'}
+                                </div>
                             </div>
                             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.8 }}>
-                                <p>✅ Billed by actual ride duration</p>
-                                <p>✅ Minimum billing: 1 hour</p>
+                                <p>✅ {vehicleType === 'Heavy Vehicle' ? 'Billed in 8-hour blocks' : 'Billed by actual ride duration'}</p>
+                                <p>✅ Minimum billing: {vehicleType === 'Heavy Vehicle' ? '₹1200' : '1 hour'}</p>
                                 <p>⚠️ Return charges may apply</p>
                                 <p>💡 10% platform commission included</p>
                             </div>
@@ -204,7 +210,9 @@ export default function CreateRide() {
                             {Object.entries(rates).map(([type, rate]) => (
                                 <div key={type} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}>
                                     <span style={{ color: 'var(--text-secondary)' }}>{type}</span>
-                                    <span style={{ fontWeight: 600, color: vehicleType === type ? 'var(--accent-teal)' : 'var(--text-primary)' }}>₹{rate}/hr</span>
+                                    <span style={{ fontWeight: 600, color: vehicleType === type ? 'var(--accent-teal)' : 'var(--text-primary)' }}>
+                                        {type === 'Heavy Vehicle' ? '₹1200/8hrs' : `₹${rate}/hr`}
+                                    </span>
                                 </div>
                             ))}
                         </div>
