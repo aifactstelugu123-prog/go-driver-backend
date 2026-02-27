@@ -10,7 +10,7 @@ const HOURLY_RATES = {
 const VEHICLE_TYPES = Object.keys(HOURLY_RATES);
 
 const SUBSCRIPTION_PLANS = {
-    free_trial: { name: 'Free Trial', price: 0, rideLimit: 1, days: 7 },
+    free_trial: { name: 'Free Trial', price: 0, rideLimit: 50, days: 30 },
     basic: { name: 'Basic', price: 99, rideLimit: 3, days: 30 },
     standard: { name: 'Standard', price: 199, rideLimit: 6, days: 30 },
     premium: { name: 'Premium', price: 499, rideLimit: 15, days: 30 },

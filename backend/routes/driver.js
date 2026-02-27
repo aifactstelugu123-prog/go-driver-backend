@@ -203,7 +203,7 @@ router.post('/claim-free-trial', protect, authorize('driver'), async (req, res) 
         driver.hasUsedFreeTrial = true;
         await driver.save();
 
-        res.json({ success: true, message: 'Free trial activated! You have 1 Minimum Ride Opportunity valid for 7 days.', subscription: sub });
+        res.json({ success: true, message: `Free trial activated! You have ${plan.rideLimit} rides valid for ${plan.days} days.`, subscription: sub });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
