@@ -78,23 +78,15 @@ export default function Login() {
         setLoading(true); setError(''); setMsg(''); setRequirePhone(false);
         try {
             const provider = new GoogleAuthProvider();
-            // Use Redirect for mobile, Popup for desktop
-            // Broader device selection for all mobile types (Android, iOS, KaiOS, webOS, feature phones)
-            const isMobile = /iPhone|iPad|iPod|Android|KAIOS|webOS|Mobile|Tablet|Opera Mini|IEMobile/i.test(navigator.userAgent);
-
-            if (isMobile) {
-                // Save role selection to localStorage so it persists after redirect
-                localStorage.setItem('pendingRole', role);
-                await signInWithRedirect(auth, provider);
-            } else {
-                const result = await signInWithPopup(auth, provider);
-                const idToken = await result.user.getIdToken();
-                handleAuthSuccess(idToken);
-            }
+            // Using signInWithPopup for all devices as signInWithRedirect often fails due to 
+            // cross-site tracking prevention in Safari/iOS and mobile WebViews.
+            const result = await signInWithPopup(auth, provider);
+            const idToken = await result.user.getIdToken();
+            handleAuthSuccess(idToken);
         } catch (e) {
             console.error('Google Auth Error:', e);
             setError(`Authentication failed: ${e.message || 'Please try again.'} (${e.code || 'unknown'})`);
-            if (e.code === 'auth/disallowed-useragent' || e.message?.includes('disallowed_useragent')) {
+            if (e.code === 'auth/disallowed-useragent' || e.message?.includes('disallowed_useragent') || e.code === 'auth/popup-blocked') {
                 setIsWebView(true);
             }
             setLoading(false);

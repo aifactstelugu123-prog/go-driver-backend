@@ -129,7 +129,7 @@ router.post('/rides', protect, authorize('owner'), async (req, res) => {
             // Find eligible drivers
             const { findEligibleDrivers } = require('../services/matchingEngine');
             const allDrivers = await Driver.find({ isApproved: true, isOnline: true });
-            const eligible = findEligibleDrivers(allDrivers, { lat: Number(pickupLat), lng: Number(pickupLng) }, vehicleType, 10, busyDriverIds);
+            const eligible = findEligibleDrivers(allDrivers, { lat: Number(pickupLat), lng: Number(pickupLng) }, vehicleType, INITIAL_SEARCH_RADIUS_KM, busyDriverIds);
 
             eligible.forEach((driver) => {
                 const socketId = driverSocket && driverSocket.get(driver._id.toString());
@@ -158,7 +158,7 @@ router.post('/rides', protect, authorize('owner'), async (req, res) => {
                     const busyDriverIds = new Set(activeOrders.map(o => o.driverId?.toString()).filter(Boolean));
 
                     const freshDrivers = await Driver.find({ isApproved: true, isOnline: true });
-                    const expanded = findEligibleDrivers(freshDrivers, { lat: Number(pickupLat), lng: Number(pickupLng) }, vehicleType, 20, busyDriverIds);
+                    const expanded = findEligibleDrivers(freshDrivers, { lat: Number(pickupLat), lng: Number(pickupLng) }, vehicleType, EXPANDED_SEARCH_RADIUS_KM, busyDriverIds);
 
                     expanded.forEach((driver) => {
                         const socketId = driverSocket && driverSocket.get(driver._id.toString());

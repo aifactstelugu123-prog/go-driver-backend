@@ -1026,15 +1026,57 @@ select.form-input option {
   transition: width 0.5s ease;
 }
 
+/* ── Mobile Header ────────────────────────────── */
+.mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 80;
+}
+
+.mobile-menu-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  transition: all 0.2s;
+}
+
+.mobile-menu-btn:active {
+  background: var(--accent-teal);
+  color: #000;
+}
+
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 768px) {
+  .mobile-header {
+    display: flex;
+  }
+
   .main-content {
     margin-left: 0;
     padding: 16px;
+    padding-top: 16px;
+  }
+
+  .app-layout {
+    flex-direction: column;
   }
 
   .sidebar {
     transform: translateX(-100%);
+    z-index: 100;
   }
 
   .sidebar.open {
