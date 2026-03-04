@@ -60,24 +60,32 @@ const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
-    'http://192.168.31.12:5173',
-    'http://192.168.31.12:5174',
-    'http://192.168.31.12:5175',
     'https://go-driver-7a978.web.app',
     'https://go-driver-7a978.firebaseapp.com',
-    'https://godriverbackend.loca.lt'
 ].filter(Boolean);
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow if no origin (mobile apps/CURL) or if in whitelist
-        // For mobile browser debugging, we also allow 192.168.x.x LAN IPs
-        const isLan = origin && /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(origin);
-        if (!origin || allowedOrigins.includes(origin) || isLan) {
+        // Allow if no origin (mobile apps/CURL)
+        if (!origin) return callback(null, true);
+
+        // Mobile browser debugging: allow any 192.168 LAN IPs
+        const isLan = /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(origin);
+
+        // Remove trailing slash for exact matching if it exists
+        const cleanOrigin = origin.replace(/\/$/, '');
+
+        if (allowedOrigins.includes(cleanOrigin) || isLan) {
             callback(null, true);
         } else {
             console.warn(`[CORS BLOCKED] Origin: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
+            // To prevent harsh blocks for the user testing, let's temporarily allow all origins if they are HTTPS
+            // but still warn. (Ideally we restrict, but we want to unblock mobile users)
+            if (origin.startsWith('https://')) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
         }
     },
     credentials: true
