@@ -16,6 +16,7 @@ const driverRoutes = require('./routes/driver');
 const adminRoutes = require('./routes/admin');
 const ridesRoutes = require('./routes/rides');
 const subscriptionRoutes = require('./routes/subscription');
+const referralRoutes = require('./routes/referral');
 const trainingRoutes = require('./routes/training');
 const walletRoutes = require('./routes/wallet');
 const driverWalletRoutes = require('./routes/driverWallet');
@@ -113,6 +114,7 @@ app.use('/api/driver', driverRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/rides', ridesRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/referral', referralRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/driver-wallet', driverWalletRoutes);
@@ -130,8 +132,10 @@ app.get('/api/health', (req, res) => {
 // });
 
 // SPA Fallback: Send index.html for any unknown routes
+// Removed frontend SP router catch-all to prevent 500 ENOENT crashes on Render 
+// since the frontend is now hosted on Firebase.
 app.use((req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+    res.status(404).json({ success: false, message: 'API Route Not Found' });
 });
 
 // Global error handler
