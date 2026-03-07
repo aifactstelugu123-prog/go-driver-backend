@@ -268,20 +268,48 @@ router.post('/quiz-complete', protect, authorize('driver'), async (req, res) => 
     try {
         const { moduleId, passed } = req.body;
         const driver = await Driver.findById(req.user.id);
-
-        if (passed && !driver.quizzesPassed.includes(moduleId)) {
-            driver.quizzesPassed.push(moduleId);
-        }
-
-        // Check if all training modules passed → grant badge
         const TrainingModule = require('../models/TrainingModule');
-        const totalModules = await TrainingModule.countDocuments({ isActive: true });
-        if (driver.quizzesPassed.length >= totalModules) {
-            driver.trainingBadge = true;
+
+        let newBadge = null;
+
+        if (passed) {
+            // Add to quizzesPassed if not already there
+            const alreadyPassed = driver.quizzesPassed.map(id => id.toString()).includes(moduleId);
+            if (!alreadyPassed) {
+                driver.quizzesPassed.push(moduleId);
+
+                // Save per-module badge to earnedBadges
+                const mod = await TrainingModule.findById(moduleId).select('title category');
+                if (mod) {
+                    const alreadyBadged = driver.earnedBadges?.some(b => b.moduleId?.toString() === moduleId);
+                    if (!alreadyBadged) {
+                        driver.earnedBadges = driver.earnedBadges || [];
+                        driver.earnedBadges.push({
+                            moduleId: mod._id,
+                            title: mod.title,
+                            category: mod.category,
+                            awardedAt: new Date(),
+                        });
+                        newBadge = { title: mod.title, category: mod.category };
+                    }
+                }
+            }
+
+            // Check if ALL active modules passed → grant master trainingBadge
+            const totalModules = await TrainingModule.countDocuments({ isActive: true });
+            if (driver.quizzesPassed.length >= totalModules) {
+                driver.trainingBadge = true;
+            }
         }
 
         await driver.save();
-        res.json({ success: true, badgeGranted: driver.trainingBadge });
+        res.json({
+            success: true,
+            badgeGranted: driver.trainingBadge,
+            newBadge,
+            earnedBadges: driver.earnedBadges,
+            totalPassed: driver.quizzesPassed.length,
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

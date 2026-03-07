@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/Sidebar';
 import { getOwnerRideById, generateStartOtp, generateEndOtp } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import RatingWidget from '../../components/RatingWidget';
 
 export default function ActiveRide() {
     const { id } = useParams();
@@ -212,6 +213,19 @@ export default function ActiveRide() {
                                     </div>
                                 )}
                             </div>
+                        )}
+
+                        {/* ── Rating Widget: Owner rates Driver (shows once driver assigned) */}
+                        {ride.driverId && ['Accepted', 'Active', 'Completed'].includes(ride.status) && (
+                            <RatingWidget
+                                orderId={id}
+                                targetName={ride.driverId?.name}
+                                targetPhoto={ride.driverId?.profilePhoto}
+                                ratedAlready={ride.ratedByOwner}
+                                existingRating={ride.driverRating}
+                                label="Rate Driver"
+                                onRated={(star) => setRide(prev => ({ ...prev, ratedByOwner: true, driverRating: star }))}
+                            />
                         )}
 
                         {/* Fare Card - Completed */}

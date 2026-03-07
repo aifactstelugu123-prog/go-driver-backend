@@ -86,11 +86,16 @@ const driverSchema = new mongoose.Schema(
 
         // Training
         trainingBadge: { type: Boolean, default: false },
+        earnedBadges: [{ moduleId: { type: mongoose.Schema.Types.ObjectId, ref: 'TrainingModule' }, title: String, category: String, awardedAt: Date }],
         quizzesPassed: [{ type: mongoose.Schema.Types.ObjectId, ref: 'TrainingModule' }],
         weeklyTraining: {
             lastPassedDate: { type: Date },
             isCleared: { type: Boolean, default: false }
         },
+
+        // Rating
+        rating: { type: Number, default: 5, min: 1, max: 5 },
+        ratingCount: { type: Number, default: 0 },
 
         // Stats
         totalRidesCompleted: { type: Number, default: 0 },

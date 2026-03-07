@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/Sidebar';
 import { getRideById, startRide, endRide } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import RatingWidget from '../../components/RatingWidget';
 
 export default function DriverActiveRide() {
     const { id } = useParams();
@@ -255,16 +256,18 @@ export default function DriverActiveRide() {
                             </div>
                         )}
 
-                        <div className="glass-card" style={{ padding: 16 }}>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.8 }}>
-                                <strong style={{ color: 'var(--text-secondary)' }}>⚠️ Speed Rules</strong><br />
-                                Max allowed: <strong style={{ color: '#10b981' }}>60 km/h</strong><br />
-                                Exceeding limit will:<br />
-                                • Warn the vehicle owner<br />
-                                • Alert admin dashboard<br />
-                                • Record violation on your profile
-                            </div>
-                        </div>
+                        {/* ── Rating Widget: Driver rates Owner */}
+                        {ride?.ownerId && ['Accepted', 'Active', 'Completed'].includes(ride.status) && (
+                            <RatingWidget
+                                orderId={id}
+                                targetName={ride.ownerId?.name || 'Owner'}
+                                targetPhoto={ride.ownerId?.profilePhoto}
+                                ratedAlready={ride.ratedByDriver}
+                                existingRating={ride.ownerRating}
+                                label="Rate Owner"
+                                onRated={(star) => setRide(prev => ({ ...prev, ratedByDriver: true, ownerRating: star }))}
+                            />
+                        )}
                     </div>
                 </div>
             </main>

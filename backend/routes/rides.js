@@ -221,4 +221,63 @@ router.get('/:id', protect, async (req, res) => {
     }
 });
 
+// POST /api/rides/:id/rate — Owner rates Driver OR Driver rates Owner
+router.post('/:id/rate', protect, async (req, res) => {
+    try {
+        const { rating, note } = req.body;
+        if (!rating || rating < 1 || rating > 5) return res.status(400).json({ success: false, message: 'Rating must be 1–5.' });
+
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+        if (!['Accepted', 'Active', 'Completed'].includes(order.status))
+            return res.status(400).json({ success: false, message: 'Can only rate after ride is assigned.' });
+
+        const { role, id } = req.user;
+
+        if (role === 'owner') {
+            if (order.ownerId.toString() !== id) return res.status(403).json({ success: false, message: 'Not your ride.' });
+            if (order.ratedByOwner) return res.status(400).json({ success: false, message: 'You already rated this ride.' });
+
+            order.driverRating = rating;
+            order.driverRatingNote = note || '';
+            order.ratedByOwner = true;
+            await order.save();
+
+            // Recalculate driver rolling average
+            const driver = await Driver.findById(order.driverId);
+            if (driver) {
+                const newCount = (driver.ratingCount || 0) + 1;
+                const newRating = +(((driver.rating || 5) * (newCount - 1) + rating) / newCount).toFixed(2);
+                await Driver.findByIdAndUpdate(order.driverId, { rating: Math.min(5, Math.max(1, newRating)), ratingCount: newCount });
+            }
+
+            return res.json({ success: true, message: 'Driver rated successfully!', rating });
+        }
+
+        if (role === 'driver') {
+            if (!order.driverId || order.driverId.toString() !== id) return res.status(403).json({ success: false, message: 'Not your ride.' });
+            if (order.ratedByDriver) return res.status(400).json({ success: false, message: 'You already rated this ride.' });
+
+            order.ownerRating = rating;
+            order.ownerRatingNote = note || '';
+            order.ratedByDriver = true;
+            await order.save();
+
+            // Recalculate owner rolling average
+            const owner = await Owner.findById(order.ownerId);
+            if (owner) {
+                const newCount = (owner.ratingCount || 0) + 1;
+                const newRating = +(((owner.rating || 5) * (newCount - 1) + rating) / newCount).toFixed(2);
+                await Owner.findByIdAndUpdate(order.ownerId, { rating: Math.min(5, Math.max(1, newRating)), ratingCount: newCount });
+            }
+
+            return res.json({ success: true, message: 'Owner rated successfully!', rating });
+        }
+
+        return res.status(403).json({ success: false, message: 'Invalid role.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 module.exports = router;

@@ -83,6 +83,14 @@ const orderSchema = new mongoose.Schema(
         isRoundTrip: { type: Boolean, default: false },
         isReturnLeg: { type: Boolean, default: false },
         turnaroundTime: { type: Date },
+
+        // Ratings
+        driverRating: { type: Number, min: 1, max: 5 },   // Owner rates Driver
+        driverRatingNote: { type: String },
+        ownerRating: { type: Number, min: 1, max: 5 },     // Driver rates Owner
+        ownerRatingNote: { type: String },
+        ratedByOwner: { type: Boolean, default: false },
+        ratedByDriver: { type: Boolean, default: false },
     },
     { timestamps: true }
 );
