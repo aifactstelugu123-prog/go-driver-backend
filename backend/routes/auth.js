@@ -8,6 +8,7 @@ const { protect } = require('../middleware/auth');
 const { admin } = require('../config/firebase-admin');
 const OTP = require('../models/OTP');
 const sendEmail = require('../utils/sendEmail');
+const { genCode } = require('../utils/genCode');
 
 const signToken = (id, role) =>
     jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '365d' });
@@ -77,7 +78,7 @@ router.post('/owner/google-register', async (req, res) => {
             phone,
             isVerified: true,
             profilePhoto: decodedToken.picture,
-            referralCode: `OWN${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
+            referralCode: genCode('OWN'),
             freeUsageExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30))
         });
         await owner.save();
@@ -257,7 +258,7 @@ router.post('/verify-otp', async (req, res) => {
 
                 user = new Owner({
                     name, email, phone, isVerified: true,
-                    referralCode: `OWN${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
+                    referralCode: genCode('OWN'),
                     freeUsageExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30)),
                     ...(referredByCode ? { referredByCode } : {}),
                 });

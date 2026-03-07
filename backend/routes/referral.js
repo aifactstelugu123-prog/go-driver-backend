@@ -3,6 +3,7 @@ const router = express.Router();
 const Driver = require('../models/Driver');
 const Owner = require('../models/Owner');
 const { protect } = require('../middleware/auth');
+const { genCode } = require('../utils/genCode');
 
 // GET /api/referral/status
 router.get('/status', protect, async (req, res) => {
@@ -13,12 +14,18 @@ router.get('/status', protect, async (req, res) => {
             let driver = await Driver.findById(id);
             if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
 
+            // Only generate code if none exists — atomic update prevents race conditions
             if (!driver.referralCode) {
-                driver.referralCode = 'DRV' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+                const newCode = genCode('DRV');
                 const validTill = new Date();
                 validTill.setMonth(validTill.getMonth() + 3);
-                driver.referralValidTill = validTill;
-                await driver.save();
+
+                // $setOnInsert logic via conditional: only set if field is missing
+                driver = await Driver.findOneAndUpdate(
+                    { _id: id, $or: [{ referralCode: { $exists: false } }, { referralCode: null }, { referralCode: '' }] },
+                    { $set: { referralCode: newCode, referralValidTill: validTill } },
+                    { new: true }
+                ) || driver;
             }
 
             return res.json({
@@ -36,12 +43,17 @@ router.get('/status', protect, async (req, res) => {
             let owner = await Owner.findById(id);
             if (!owner) return res.status(404).json({ success: false, message: 'Owner not found' });
 
+            // Only generate code if none exists — atomic update prevents race conditions
             if (!owner.referralCode) {
-                owner.referralCode = 'OWN' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+                const newCode = genCode('OWN');
                 const validTill = new Date();
                 validTill.setDate(validTill.getDate() + 30);
-                owner.freeUsageExpiryDate = validTill;
-                await owner.save();
+
+                owner = await Owner.findOneAndUpdate(
+                    { _id: id, $or: [{ referralCode: { $exists: false } }, { referralCode: null }, { referralCode: '' }] },
+                    { $set: { referralCode: newCode, freeUsageExpiryDate: validTill } },
+                    { new: true }
+                ) || owner;
             }
 
             // Count how many people joined using this owner's code
@@ -65,6 +77,7 @@ router.get('/status', protect, async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
+
 
 // PUT /api/referral/owner/popup-seen
 router.put('/owner/popup-seen', protect, async (req, res) => {

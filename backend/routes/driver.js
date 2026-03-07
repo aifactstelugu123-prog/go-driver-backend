@@ -10,6 +10,7 @@ const { authorize } = require('../middleware/role');
 const { getOtpExpiry } = require('../services/otpService'); // Kept for ride OTPs if needed
 const { SUBSCRIPTION_PLANS } = require('../config/constants');
 const { admin } = require('../config/firebase-admin');
+const { genCode } = require('../utils/genCode');
 
 // Simple multer for driver registration docs
 const regUploadDir = path.join(__dirname, '../uploads/drivers');
@@ -113,7 +114,7 @@ router.post(
                 },
                 profilePhoto: req.files?.photo?.[0] ? `/uploads/drivers/${req.files.photo[0].filename}` : '',
                 isVerified: true,
-                referralCode: `DRV${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
+                referralCode: genCode('DRV'),
                 referralValidTill,
                 referredBy: referredById,
                 referredByCode,
