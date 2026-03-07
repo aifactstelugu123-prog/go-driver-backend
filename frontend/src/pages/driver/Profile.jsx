@@ -220,91 +220,95 @@ export default function DriverProfile() {
 
                                     return (
                                         <div key={doc.key} className="glass-card" style={{
-                                            padding: 20,
+                                            padding: 20, display: 'flex', flexDirection: 'column', gap: 16,
                                             border: `1px solid ${docData ? statusColors[docData.status] + '40' : 'var(--border)'}`,
                                         }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    <span style={{ fontSize: '1.6rem' }}>{doc.icon}</span>
-                                                    <div>
-                                                        <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{doc.label}</div>
-                                                        {docData?.uploadedAt && (
-                                                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                                                                Uploaded: {new Date(docData.uploadedAt).toLocaleDateString('en-IN')}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                {docData && (
-                                                    <span style={{
-                                                        padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 700,
-                                                        background: `${statusColors[docData.status]}20`, color: statusColors[docData.status],
-                                                    }}>
-                                                        {statusIcons[docData.status]} {docData.status}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* View uploaded file */}
-                                            {docData?.filePath && (
-                                                <button
-                                                    onClick={() => setViewer({ isOpen: true, path: docData.filePath, title: doc.label })}
-                                                    className="btn btn-secondary btn-sm"
-                                                    style={{
-                                                        width: '100%',
-                                                        marginBottom: 10,
-                                                        fontSize: '0.75rem',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '6px'
-                                                    }}
-                                                >
-                                                    👁️ View {doc.label}
-                                                </button>
-                                            )}
-                                            {doc.key === 'photo' && docData?.filePath && (
-                                                <div style={{ textAlign: 'center', marginBottom: 10 }}>
+                                            {/* Top Row: Icon/Info/Status */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%' }}>
+                                                {/* Left: Icon or Thumbnail */}
+                                                {doc.key === 'photo' && docData?.filePath ? (
                                                     <img
                                                         src={docData.filePath.startsWith('http')
                                                             ? docData.filePath
                                                             : `${API_BASE.replace('/api', '')}${docData.filePath}`
                                                         }
                                                         alt="Profile"
-                                                        style={{
-                                                            width: 80,
-                                                            height: 80,
-                                                            borderRadius: '50%',
-                                                            objectFit: 'cover',
-                                                            border: '2px solid var(--accent-teal)',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                        onClick={() => setViewer({ isOpen: true, path: docData.filePath, title: 'Profile Photo' })}
+                                                        style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid var(--accent-teal)' }}
                                                     />
-                                                </div>
-                                            )}
+                                                ) : (
+                                                    <div style={{ fontSize: '1.8rem', flexShrink: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: 12 }}>{doc.icon}</div>
+                                                )}
 
-                                            {/* Upload button */}
-                                            {canReupload ? (
-                                                <>
-                                                    <input type="file" accept={doc.accept} ref={el => fileRefs.current[doc.key] = el}
-                                                        style={{ display: 'none' }}
-                                                        onChange={e => uploadDoc(doc.key, e.target.files[0])} />
-                                                    <button className="btn btn-secondary btn-sm"
-                                                        onClick={() => fileRefs.current[doc.key]?.click()}
-                                                        disabled={uploading[doc.key]}
-                                                        style={{ width: '100%', justifyContent: 'center', fontSize: '0.78rem' }}>
-                                                        {uploading[doc.key] ? '⏳ Uploading...' : docData ? '🔄 Re-upload' : '⬆️ Upload'}
-                                                    </button>
-                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 4, textAlign: 'center' }}>
-                                                        Max 200 KB · JPG, PNG, PDF
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <div style={{ fontSize: '0.75rem', color: '#10b981', textAlign: 'center', marginTop: 6 }}>
-                                                    ✅ Verified — cannot re-upload
+                                                {/* Middle: Title & Date */}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.label}</div>
+                                                    {docData?.uploadedAt ? (
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                            Uploaded: {new Date(docData.uploadedAt).toLocaleDateString('en-IN')}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Not uploaded yet</div>
+                                                    )}
                                                 </div>
-                                            )}
+
+                                                {/* Right: Status Badge */}
+                                                {docData && (
+                                                    <span style={{
+                                                        padding: '4px 10px', borderRadius: 20, fontSize: '0.75rem', fontWeight: 600,
+                                                        background: `${statusColors[docData.status]}15`, color: statusColors[docData.status],
+                                                        border: `1px solid ${statusColors[docData.status]}40`,
+                                                        display: 'flex', alignItems: 'center', gap: 4
+                                                    }}>
+                                                        <span>{statusIcons[docData.status]}</span> {docData.status}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Bottom Row: Actions */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                                                {docData?.filePath && (
+                                                    <button
+                                                        onClick={() => setViewer({ isOpen: true, path: docData.filePath, title: doc.label })}
+                                                        style={{
+                                                            width: '100%', padding: '10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
+                                                            background: 'rgba(0,0,0,0.2)', color: 'var(--accent-teal)', fontSize: '0.85rem', fontWeight: 600,
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.05)'}
+                                                        onMouseOut={e => e.target.style.background = 'rgba(0,0,0,0.2)'}
+                                                    >
+                                                        👁️ View {doc.label}
+                                                    </button>
+                                                )}
+
+                                                <input type="file" accept={doc.accept} ref={el => fileRefs.current[doc.key] = el}
+                                                    style={{ display: 'none' }} onChange={e => uploadDoc(doc.key, e.target.files[0])} />
+
+                                                {canReupload ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => fileRefs.current[doc.key]?.click()}
+                                                            disabled={uploading[doc.key]}
+                                                            style={{
+                                                                width: '100%', padding: '10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
+                                                                background: 'rgba(0,0,0,0.2)', color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 600,
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: uploading[doc.key] ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: uploading[doc.key] ? 0.7 : 1
+                                                            }}
+                                                            onMouseOver={e => !uploading[doc.key] && (e.target.style.background = 'rgba(255,255,255,0.05)')}
+                                                            onMouseOut={e => !uploading[doc.key] && (e.target.style.background = 'rgba(0,0,0,0.2)')}
+                                                        >
+                                                            {uploading[doc.key] ? '⏳ Uploading...' : docData ? '🔄 Re-upload' : '⬆️ Upload'}
+                                                        </button>
+                                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: -2 }}>
+                                                            Max 200 KB · JPG, PNG, PDF
+                                                        </div>
+                                                    </>
+                                                ) : verified ? (
+                                                    <div style={{ fontSize: '0.75rem', color: '#10b981', textAlign: 'center', padding: '10px', background: 'rgba(16,185,129,0.05)', borderRadius: 8, border: '1px solid rgba(16,185,129,0.1)' }}>
+                                                        ✅ Verified — cannot re-upload
+                                                    </div>
+                                                ) : null}
+                                            </div>
                                         </div>
                                     );
                                 })}
