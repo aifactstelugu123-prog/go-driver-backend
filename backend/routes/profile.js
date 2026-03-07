@@ -51,6 +51,8 @@ router.post('/driver/upload/:docType', protect, authorize('driver'), (req, res, 
     try {
         const d = await Driver.findById(req.user.id);
         if (!d) return res.status(404).json({ success: false, message: 'Driver not found.' });
+        if (d.documents_locked)
+            return res.status(403).json({ success: false, message: 'Documents are locked. Please request an edit from admin.' });
         if (d.profileLocked && d.documents?.[req.params.docType]?.status === 'verified')
             return res.status(403).json({ success: false, message: `${req.params.docType} is already verified. Cannot re-upload. Contact admin.` });
         if (!req.file)
@@ -67,6 +69,41 @@ router.post('/driver/upload/:docType', protect, authorize('driver'), (req, res, 
 
         await d.save();
         res.json({ success: true, message: 'Document uploaded successfully.', filePath, status: 'pending' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// POST /api/profile/driver/submit-documents
+router.post('/driver/submit-documents', protect, authorize('driver'), async (req, res) => {
+    try {
+        const d = await Driver.findById(req.user.id);
+        if (!d) return res.status(404).json({ success: false, message: 'Driver not found.' });
+        d.documents_locked = true;
+        d.edit_permission_enabled = false;
+        d.edit_request_status = 'none';
+        await d.save();
+        res.json({ success: true, message: 'Documents submitted successfully and locked for review.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// POST /api/profile/driver/request-edit
+router.post('/driver/request-edit', protect, authorize('driver'), async (req, res) => {
+    try {
+        const { reason, description } = req.body;
+        if (!reason) return res.status(400).json({ success: false, message: 'Reason is required.' });
+        const d = await Driver.findById(req.user.id);
+        if (!d) return res.status(404).json({ success: false, message: 'Driver not found.' });
+
+        d.edit_request_status = 'pending';
+        d.edit_request_reason = reason;
+        d.edit_request_desc = description || '';
+        d.edit_request_date = new Date();
+        await d.save();
+
+        res.json({ success: true, message: 'Edit request submitted to admin.' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -112,6 +149,8 @@ router.post('/owner/upload/:docType', protect, authorize('owner'), (req, res, ne
     try {
         const o = await Owner.findById(req.user.id);
         if (!o) return res.status(404).json({ success: false, message: 'Owner not found.' });
+        if (o.documents_locked)
+            return res.status(403).json({ success: false, message: 'Documents are locked. Please request an edit from admin.' });
         if (o.profileLocked && o.documents?.[req.params.docType]?.status === 'verified')
             return res.status(403).json({ success: false, message: `${req.params.docType} is already verified. Contact admin.` });
         if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded.' });
@@ -127,6 +166,41 @@ router.post('/owner/upload/:docType', protect, authorize('owner'), (req, res, ne
 
         await o.save();
         res.json({ success: true, message: 'Document uploaded.', filePath, status: 'pending' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// POST /api/profile/owner/submit-documents
+router.post('/owner/submit-documents', protect, authorize('owner'), async (req, res) => {
+    try {
+        const o = await Owner.findById(req.user.id);
+        if (!o) return res.status(404).json({ success: false, message: 'Owner not found.' });
+        o.documents_locked = true;
+        o.edit_permission_enabled = false;
+        o.edit_request_status = 'none';
+        await o.save();
+        res.json({ success: true, message: 'Documents submitted successfully and locked for review.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// POST /api/profile/owner/request-edit
+router.post('/owner/request-edit', protect, authorize('owner'), async (req, res) => {
+    try {
+        const { reason, description } = req.body;
+        if (!reason) return res.status(400).json({ success: false, message: 'Reason is required.' });
+        const o = await Owner.findById(req.user.id);
+        if (!o) return res.status(404).json({ success: false, message: 'Owner not found.' });
+
+        o.edit_request_status = 'pending';
+        o.edit_request_reason = reason;
+        o.edit_request_desc = description || '';
+        o.edit_request_date = new Date();
+        await o.save();
+
+        res.json({ success: true, message: 'Edit request submitted to admin.' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -202,6 +276,56 @@ router.patch('/admin/owner/:id/lock', protect, authorize('admin'), async (req, r
         const { locked } = req.body;
         await Owner.findByIdAndUpdate(req.params.id, { profileLocked: locked });
         res.json({ success: true, message: `Owner profile ${locked ? 'locked' : 'unlocked'}.` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// GET /api/profile/admin/document-requests
+router.get('/admin/document-requests', protect, authorize('admin'), async (req, res) => {
+    try {
+        const drivers = await Driver.find({ edit_request_status: 'pending' })
+            .select('name phone documents_locked edit_request_status edit_permission_enabled edit_request_reason edit_request_desc edit_request_date documents profilePhoto');
+        const owners = await Owner.find({ edit_request_status: 'pending' })
+            .select('name phone documents_locked edit_request_status edit_permission_enabled edit_request_reason edit_request_desc edit_request_date documents profilePhoto');
+        res.json({ success: true, drivers, owners });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// PATCH /api/profile/admin/document-request/:model/:id/approve
+router.patch('/admin/document-request/:model/:id/approve', protect, authorize('admin'), async (req, res) => {
+    try {
+        const { model, id } = req.params;
+        const Model = model === 'driver' ? Driver : Owner;
+        const user = await Model.findById(id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        user.documents_locked = false;
+        user.edit_permission_enabled = true;
+        user.edit_request_status = 'approved';
+        await user.save();
+
+        // Note: Realistically we should send an email or push notification here
+        res.json({ success: true, message: 'Edit request approved. User documents un-locked.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// PATCH /api/profile/admin/document-request/:model/:id/reject
+router.patch('/admin/document-request/:model/:id/reject', protect, authorize('admin'), async (req, res) => {
+    try {
+        const { model, id } = req.params;
+        const Model = model === 'driver' ? Driver : Owner;
+        const user = await Model.findById(id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        user.edit_request_status = 'rejected';
+        await user.save();
+
+        res.json({ success: true, message: 'Edit request rejected.' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

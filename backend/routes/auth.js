@@ -6,6 +6,8 @@ const Driver = require('../models/Driver');
 const { adminIpGuard } = require('../middleware/adminIpGuard');
 const { protect } = require('../middleware/auth');
 const { admin } = require('../config/firebase-admin');
+const OTP = require('../models/OTP');
+const sendEmail = require('../utils/sendEmail');
 
 const signToken = (id, role) =>
     jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '365d' });
@@ -74,7 +76,9 @@ router.post('/owner/google-register', async (req, res) => {
             email,
             phone,
             isVerified: true,
-            profilePhoto: decodedToken.picture
+            profilePhoto: decodedToken.picture,
+            referralCode: `OWN${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
+            freeUsageExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30))
         });
         await owner.save();
 
@@ -143,6 +147,131 @@ router.post('/admin/google-login', async (req, res) => {
     } catch (err) {
         console.error(`[ADMIN LOGIN ERROR] ${err.message}`);
         res.status(401).json({ success: false, message: 'Invalid or expired Google token.' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// EMAIL OTP AUTHENTICATION (PASSWORDLESS)
+// ─────────────────────────────────────────────
+
+// POST /api/auth/send-otp
+router.post('/send-otp', async (req, res) => {
+    try {
+        let { email } = req.body;
+        if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
+        email = email.trim().toLowerCase();
+
+        // 1. Generate 6-digit OTP
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // 2. Remove any existing OTP for this email
+        await OTP.deleteMany({ email });
+
+        // 3. Save new OTP to database
+        const otpDoc = new OTP({ email, otp: otpCode });
+        await otpDoc.save();
+
+        // 4. Send Email
+        const message = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ccc; border-radius: 8px; max-width: 500px; margin: auto;">
+                <h2 style="color: #00d4aa; text-align: center;">DaaS Platform</h2>
+                <p>Hello,</p>
+                <p>Your verification code for accessing the DaaS platform is:</p>
+                <h1 style="text-align: center; letter-spacing: 5px; color: #333;">${otpCode}</h1>
+                <p>This code will expire in 5 minutes. Do not share this code with anyone.</p>
+                <br />
+                <p>Regards,<br>DaaS Platform Team</p>
+            </div>
+        `;
+
+        await sendEmail({
+            email,
+            subject: 'Your DaaS Platform Verification Code',
+            message
+        });
+
+        res.json({ success: true, message: 'OTP sent successfully to ' + email });
+    } catch (err) {
+        console.error('[SEND OTP ERROR]', err);
+        res.status(500).json({ success: false, message: 'Error sending OTP. Please try again.' });
+    }
+});
+
+// POST /api/auth/verify-otp
+router.post('/verify-otp', async (req, res) => {
+    try {
+        let { email, otp, role, name, phone, referralCode } = req.body;
+        if (!email || !otp || !role) return res.status(400).json({ success: false, message: 'Email, OTP, and Role are required' });
+        email = email.trim().toLowerCase();
+
+        // 1. Validate OTP
+        const otpRecord = await OTP.findOne({ email });
+        if (!otpRecord) return res.status(400).json({ success: false, message: 'OTP expired or not found. Please request a new one.' });
+        if (otpRecord.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
+
+        // 2. Process based on Role
+        if (role === 'admin') {
+            const adminEmails = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.split(',').map(e => e.trim().toLowerCase()) : [];
+            if (adminEmails.includes(email)) {
+                await OTP.deleteOne({ _id: otpRecord._id }); // Consume OTP
+                const token = signToken('admin', 'admin');
+                return res.json({ success: true, token, role: 'admin', user: { id: 'admin', email } });
+            }
+            return res.status(403).json({ success: false, message: 'Unauthorized Admin Email.' });
+        }
+
+        let user;
+        const Model = role === 'owner' ? Owner : Driver;
+
+        // Try to find existing user
+        user = await Model.findOne({ email });
+
+        if (!user) {
+            // REGISTRATION FLOW
+            if (role === 'driver') {
+                // Drivers MUST go through the multipart /api/driver/register flow to upload documents
+                return res.json({ success: true, requireRegistration: true, email });
+            }
+
+            if (!name || !phone) {
+                // Do NOT delete OTP yet, they need to fill out their details in the frontend form
+                return res.json({ success: true, requireRegistration: true, email });
+            }
+
+            // Ensure unique phone for Owner
+            const existingPhone = await Model.findOne({ phone });
+            if (existingPhone) return res.status(400).json({ success: false, message: 'Phone number already registered to another account.' });
+
+            if (role === 'owner') {
+                user = new Owner({
+                    name, email, phone, isVerified: true,
+                    referralCode: `OWN${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
+                    freeUsageExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30))
+                });
+                await user.save();
+            }
+        }
+
+        // LOGIN / COMPLETED REGISTRATION FLOW
+        await OTP.deleteOne({ _id: otpRecord._id }); // Consume OTP since auth succeeded
+        const token = signToken(user._id, role);
+        res.json({
+            success: true,
+            token,
+            role,
+            user: {
+                id: user._id,
+                name: user.name,
+                phone: user.phone,
+                email: user.email,
+                isApproved: user.isApproved, // Usually only driver has this, harmless for owner
+                profilePhoto: user.profilePhoto || null
+            }
+        });
+
+    } catch (err) {
+        console.error('[VERIFY OTP ERROR]', err);
+        res.status(500).json({ success: false, message: 'Server error verifying OTP.' });
     }
 });
 

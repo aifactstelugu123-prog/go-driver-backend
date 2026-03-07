@@ -9,7 +9,6 @@ const ownerNav = [
     { to: '/owner/rides', label: 'Ride History', icon: '📋' },
     { to: '/owner/wallet', label: 'My Wallet', icon: '💰' },
     { to: '/owner/profile', label: 'My Profile', icon: '👤' },
-    { to: '/owner/rto-exam', label: 'Go Driver Exam', icon: '📝' },
 ];
 
 const driverNav = [
@@ -25,6 +24,7 @@ const adminNav = [
     { to: '/admin', label: 'Dashboard', icon: '📊' },
     { to: '/admin/drivers', label: 'Drivers', icon: '🧑‍✈️' },
     { to: '/admin/owners', label: 'Owners', icon: '👥' },
+    { to: '/admin/document-requests', label: 'Doc Requests', icon: '📄' },
     { to: '/admin/orders', label: 'Orders', icon: '📋' },
     { to: '/admin/violations', label: 'Speed Violations', icon: '⚠️' },
     { to: '/admin/subscriptions', label: 'Subscriptions', icon: '💳' },

@@ -36,6 +36,40 @@ router.put('/drivers/:id/approve', async (req, res) => {
     try {
         const driver = await Driver.findByIdAndUpdate(req.params.id, { isApproved: true }, { new: true });
         if (!driver) return res.status(404).json({ success: false, message: 'Driver not found.' });
+
+        // --- Process Referral Reward on Approval ---
+        if (driver.referredBy) {
+            const referrer = await Driver.findById(driver.referredBy);
+            // Only reward if within 3 month validity period and under 10 max
+            if (referrer && referrer.referralValidTill && referrer.referralValidTill > new Date() && referrer.referralCount < 10) {
+                referrer.referralCount += 1;
+                const count = referrer.referralCount;
+
+                // Slab logic
+                let daysToAdd = 0;
+                let newSlab = referrer.currentRewardSlab;
+
+                if (count === 1) { newSlab = 1; daysToAdd = 1; /* 1 free ride logic depends on this, give minimum expiry */ }
+                else if (count === 3) { newSlab = 3; daysToAdd = 15; }
+                else if (count === 5) { newSlab = 5; daysToAdd = 30; }
+                else if (count === 7) { newSlab = 7; daysToAdd = 45; }
+                else if (count === 10) { newSlab = 10; daysToAdd = 60; }
+
+                if (daysToAdd > 0) {
+                    referrer.currentRewardSlab = newSlab;
+                    const expiry = new Date();
+                    expiry.setDate(expiry.getDate() + daysToAdd);
+
+                    // Only upgrade the expiry if the new reward extends it further than what they already have
+                    if (!referrer.freeRidesExpiryDate || expiry > referrer.freeRidesExpiryDate) {
+                        referrer.freeRidesExpiryDate = expiry;
+                    }
+                }
+
+                await referrer.save();
+            }
+        }
+
         res.json({ success: true, message: 'Driver approved.', driver });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

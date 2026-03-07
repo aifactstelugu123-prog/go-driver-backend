@@ -42,6 +42,10 @@ export default function DriverProfile() {
     // Document Viewer State
     const [viewer, setViewer] = useState({ isOpen: false, path: '', title: '' });
 
+    // Document Edit Request State
+    const [requestModal, setRequestModal] = useState({ isOpen: false, reason: 'Wrong document', description: '' });
+    const [submittingLock, setSubmittingLock] = useState(false);
+
     const load = async () => {
         const r = await apiFetch('/profile/driver');
         if (r.success) {
@@ -101,6 +105,8 @@ export default function DriverProfile() {
     };
 
     const locked = profile?.profileLocked;
+    const docsLocked = profile?.documents_locked;
+    const editStatus = profile?.edit_request_status;
     const docs = profile?.documents || {};
 
     const allVerified = DOCS.every(d => docs[d.key]?.status === 'verified');
@@ -121,13 +127,13 @@ export default function DriverProfile() {
                     <div style={{
                         display: 'flex', gap: 12, marginBottom: 20, padding: '14px 20px',
                         borderRadius: 12, alignItems: 'center',
-                        background: locked ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
-                        border: `1px solid ${locked ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`,
+                        background: (locked || docsLocked) ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
+                        border: `1px solid ${(locked || docsLocked) ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}`,
                     }}>
-                        <span style={{ fontSize: '1.5rem' }}>{locked ? '🔒' : '✏️'}</span>
+                        <span style={{ fontSize: '1.5rem' }}>{(locked || docsLocked) ? '🔒' : '✏️'}</span>
                         <div>
-                            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: locked ? '#10b981' : '#f59e0b' }}>
-                                {locked ? 'Profile Locked — Admin Verified' : 'Profile Editable'}
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: (locked || docsLocked) ? '#10b981' : '#f59e0b' }}>
+                                {(locked || docsLocked) ? 'Profile & Documents Locked — Admin Verified or Under Review' : 'Documents Editable'}
                             </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                 {uploadedCount}/{DOCS.length} documents uploaded · {verifiedCount} verified
@@ -205,102 +211,146 @@ export default function DriverProfile() {
 
                     {/* ── Documents Tab ── */}
                     {tab === 'docs' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                            {DOCS.map(doc => {
-                                const docData = docs[doc.key];
-                                const verified = docData?.status === 'verified';
-                                const canReupload = !verified; // can re-upload unless verified
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                {DOCS.map(doc => {
+                                    const docData = docs[doc.key];
+                                    const verified = docData?.status === 'verified';
+                                    const canReupload = !docsLocked && !verified; // Block if locked
 
-                                return (
-                                    <div key={doc.key} className="glass-card" style={{
-                                        padding: 20,
-                                        border: `1px solid ${docData ? statusColors[docData.status] + '40' : 'var(--border)'}`,
-                                    }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <span style={{ fontSize: '1.6rem' }}>{doc.icon}</span>
-                                                <div>
-                                                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{doc.label}</div>
-                                                    {docData?.uploadedAt && (
-                                                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                                                            Uploaded: {new Date(docData.uploadedAt).toLocaleDateString('en-IN')}
-                                                        </div>
-                                                    )}
+                                    return (
+                                        <div key={doc.key} className="glass-card" style={{
+                                            padding: 20,
+                                            border: `1px solid ${docData ? statusColors[docData.status] + '40' : 'var(--border)'}`,
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <span style={{ fontSize: '1.6rem' }}>{doc.icon}</span>
+                                                    <div>
+                                                        <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{doc.label}</div>
+                                                        {docData?.uploadedAt && (
+                                                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                                                Uploaded: {new Date(docData.uploadedAt).toLocaleDateString('en-IN')}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
+                                                {docData && (
+                                                    <span style={{
+                                                        padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 700,
+                                                        background: `${statusColors[docData.status]}20`, color: statusColors[docData.status],
+                                                    }}>
+                                                        {statusIcons[docData.status]} {docData.status}
+                                                    </span>
+                                                )}
                                             </div>
-                                            {docData && (
-                                                <span style={{
-                                                    padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 700,
-                                                    background: `${statusColors[docData.status]}20`, color: statusColors[docData.status],
-                                                }}>
-                                                    {statusIcons[docData.status]} {docData.status}
-                                                </span>
+
+                                            {/* View uploaded file */}
+                                            {docData?.filePath && (
+                                                <button
+                                                    onClick={() => setViewer({ isOpen: true, path: docData.filePath, title: doc.label })}
+                                                    className="btn btn-secondary btn-sm"
+                                                    style={{
+                                                        width: '100%',
+                                                        marginBottom: 10,
+                                                        fontSize: '0.75rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '6px'
+                                                    }}
+                                                >
+                                                    👁️ View {doc.label}
+                                                </button>
+                                            )}
+                                            {doc.key === 'photo' && docData?.filePath && (
+                                                <div style={{ textAlign: 'center', marginBottom: 10 }}>
+                                                    <img
+                                                        src={docData.filePath.startsWith('http')
+                                                            ? docData.filePath
+                                                            : `${API_BASE.replace('/api', '')}${docData.filePath}`
+                                                        }
+                                                        alt="Profile"
+                                                        style={{
+                                                            width: 80,
+                                                            height: 80,
+                                                            borderRadius: '50%',
+                                                            objectFit: 'cover',
+                                                            border: '2px solid var(--accent-teal)',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                        onClick={() => setViewer({ isOpen: true, path: docData.filePath, title: 'Profile Photo' })}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {/* Upload button */}
+                                            {canReupload ? (
+                                                <>
+                                                    <input type="file" accept={doc.accept} ref={el => fileRefs.current[doc.key] = el}
+                                                        style={{ display: 'none' }}
+                                                        onChange={e => uploadDoc(doc.key, e.target.files[0])} />
+                                                    <button className="btn btn-secondary btn-sm"
+                                                        onClick={() => fileRefs.current[doc.key]?.click()}
+                                                        disabled={uploading[doc.key]}
+                                                        style={{ width: '100%', justifyContent: 'center', fontSize: '0.78rem' }}>
+                                                        {uploading[doc.key] ? '⏳ Uploading...' : docData ? '🔄 Re-upload' : '⬆️ Upload'}
+                                                    </button>
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 4, textAlign: 'center' }}>
+                                                        Max 200 KB · JPG, PNG, PDF
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div style={{ fontSize: '0.75rem', color: '#10b981', textAlign: 'center', marginTop: 6 }}>
+                                                    ✅ Verified — cannot re-upload
+                                                </div>
                                             )}
                                         </div>
+                                    );
+                                })}
+                            </div>
 
-                                        {/* View uploaded file */}
-                                        {docData?.filePath && (
-                                            <button
-                                                onClick={() => setViewer({ isOpen: true, path: docData.filePath, title: doc.label })}
-                                                className="btn btn-secondary btn-sm"
-                                                style={{
-                                                    width: '100%',
-                                                    marginBottom: 10,
-                                                    fontSize: '0.75rem',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    gap: '6px'
-                                                }}
-                                            >
-                                                👁️ View {doc.label}
+                            {/* Sticky Bottom Actions */}
+                            {!docsLocked ? (
+                                <div className="glass-card" style={{ padding: 20, textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+                                        Once you have uploaded the required documents, please submit them for admin review. Editing will be disabled.
+                                    </p>
+                                    <button
+                                        className="btn btn-primary"
+                                        style={{ width: '100%', maxWidth: 300, margin: '0 auto', justifyContent: 'center' }}
+                                        disabled={submittingLock}
+                                        onClick={async () => {
+                                            if (!window.confirm('Are you sure you want to lock and submit your documents for review? You will not be able to edit them until reviewed.')) return;
+                                            setSubmittingLock(true);
+                                            const r = await apiFetch('/profile/driver/submit-documents', 'POST');
+                                            r.success ? showMsg(r.message) : showMsg(r.message, true);
+                                            setSubmittingLock(false);
+                                            load();
+                                        }}
+                                    >
+                                        {submittingLock ? '⏳ Submitting...' : '🔒 Submit Documents for Review'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="glass-card" style={{ padding: 20, textAlign: 'center', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                    <h3 style={{ marginBottom: 8 }}>Documents are locked 🔒</h3>
+                                    {editStatus === 'pending' ? (
+                                        <div style={{ display: 'inline-block', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: '0.9rem' }}>
+                                            Edit Request Status: Pending Admin Approval 🟡
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+                                                If you found any mistake (e.g., wrong document uploaded, spelling mistake), you can request admin approval to unlock your documents.
+                                            </p>
+                                            <button className="btn btn-secondary" style={{ width: '100%', maxWidth: 300, margin: '0 auto', justifyContent: 'center', borderColor: '#ef4444', color: '#ef4444' }} onClick={() => setRequestModal({ ...requestModal, isOpen: true })}>
+                                                📝 Request Edit Approval
                                             </button>
-                                        )}
-                                        {doc.key === 'photo' && docData?.filePath && (
-                                            <div style={{ textAlign: 'center', marginBottom: 10 }}>
-                                                <img
-                                                    src={docData.filePath.startsWith('http')
-                                                        ? docData.filePath
-                                                        : `${API_BASE.replace('/api', '')}${docData.filePath}`
-                                                    }
-                                                    alt="Profile"
-                                                    style={{
-                                                        width: 80,
-                                                        height: 80,
-                                                        borderRadius: '50%',
-                                                        objectFit: 'cover',
-                                                        border: '2px solid var(--accent-teal)',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                    onClick={() => setViewer({ isOpen: true, path: docData.filePath, title: 'Profile Photo' })}
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* Upload button */}
-                                        {canReupload ? (
-                                            <>
-                                                <input type="file" accept={doc.accept} ref={el => fileRefs.current[doc.key] = el}
-                                                    style={{ display: 'none' }}
-                                                    onChange={e => uploadDoc(doc.key, e.target.files[0])} />
-                                                <button className="btn btn-secondary btn-sm"
-                                                    onClick={() => fileRefs.current[doc.key]?.click()}
-                                                    disabled={uploading[doc.key]}
-                                                    style={{ width: '100%', justifyContent: 'center', fontSize: '0.78rem' }}>
-                                                    {uploading[doc.key] ? '⏳ Uploading...' : docData ? '🔄 Re-upload' : '⬆️ Upload'}
-                                                </button>
-                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 4, textAlign: 'center' }}>
-                                                    Max 200 KB · JPG, PNG, PDF
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div style={{ fontSize: '0.75rem', color: '#10b981', textAlign: 'center', marginTop: 6 }}>
-                                                ✅ Verified — cannot re-upload
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </>)}
@@ -312,6 +362,53 @@ export default function DriverProfile() {
                 filePath={viewer.path}
                 title={viewer.title}
             />
+
+            {/* Request Edit Modal */}
+            {requestModal.isOpen && (
+                <div className="modal-backdrop">
+                    <div className="modal-content" style={{ maxWidth: 400 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)' }}>Request Document Edit</h2>
+                            <button className="icon-btn" onClick={() => setRequestModal({ ...requestModal, isOpen: false })}>✖</button>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Select Reason</label>
+                            <select
+                                className="form-input"
+                                value={requestModal.reason}
+                                onChange={e => setRequestModal({ ...requestModal, reason: e.target.value })}
+                            >
+                                <option value="Wrong document">Wrong document uploaded</option>
+                                <option value="Spelling mistake">Spelling mistake in name</option>
+                                <option value="Number mistake">Wrong number entered</option>
+                                <option value="Expired document">Expired document</option>
+                                <option value="Other">Other (specify below)</option>
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Additional Details</label>
+                            <textarea
+                                className="form-input" rows={3} placeholder="Provide details..."
+                                value={requestModal.description}
+                                onChange={e => setRequestModal({ ...requestModal, description: e.target.value })}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                            <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setRequestModal({ ...requestModal, isOpen: false })}>Cancel</button>
+                            <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={async () => {
+                                setSubmittingLock(true);
+                                const r = await apiFetch('/profile/driver/request-edit', 'POST', { reason: requestModal.reason, description: requestModal.description });
+                                r.success ? showMsg(r.message) : showMsg(r.message, true);
+                                setSubmittingLock(false);
+                                setRequestModal({ ...requestModal, isOpen: false });
+                                load();
+                            }}>
+                                {submittingLock ? '⏳...' : 'Submit Request'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

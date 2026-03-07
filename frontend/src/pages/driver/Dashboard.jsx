@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import Sidebar from '../../components/Sidebar';
 import RideAlertModal from '../../components/RideAlertModal';
+import AIChatWidget from '../../components/AIChatWidget';
 import { getDriverProfile, getSubscriptionStatus, claimFreeTrial, acceptRide, setDriverOnline, setDriverOffline, acceptTnC } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -11,6 +12,7 @@ export default function DriverDashboard() {
     const navigate = useNavigate();
     const [profile, setProfile] = useState(null);
     const [subStatus, setSubStatus] = useState(null);
+    const [referralStatus, setReferralStatus] = useState(null);
     const [loading, setLoading] = useState(true);
     const [incomingRide, setIncomingRide] = useState(null);
     const [rideTimer, setRideTimer] = useState(30);
@@ -25,16 +27,32 @@ export default function DriverDashboard() {
     const timerRef = useRef(null);
 
     useEffect(() => {
-        Promise.all([getDriverProfile(), getSubscriptionStatus()])
-            .then(([p, s]) => {
+        const fetchDashboardData = async () => {
+            try {
+                const [p, s] = await Promise.all([getDriverProfile(), getSubscriptionStatus()]);
                 setProfile(p.data.driver);
                 setSubStatus(s.data);
                 setIsOnline(p.data.driver?.isOnline);
                 if (p.data.driver && !p.data.driver.acceptedTnC) {
                     setShowTnC(true);
                 }
-            })
-            .finally(() => setLoading(false));
+
+                // Fetch referral status separately to not break if it fails
+                const refToken = localStorage.getItem('token');
+                const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                const refData = await fetch(`${baseUrl}/referral/status`, {
+                    headers: { 'Authorization': `Bearer ${refToken}` }
+                }).then(res => res.json());
+                if (refData.success) {
+                    setReferralStatus(refData);
+                }
+            } catch (err) {
+                console.error("Dashboard Load Error", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDashboardData();
     }, []);
 
     useEffect(() => {
@@ -66,7 +84,12 @@ export default function DriverDashboard() {
                 setIsOnline(true);
             }
         } catch (e) {
-            alert(e.response?.data?.message || 'Failed to update status.');
+            const msg = e.response?.data?.message || 'Failed to update status.';
+            if (msg.includes('Refer at least 1')) {
+                alert('🛑 Action Required: ' + msg + '\n\nPlease share your Referral Code below to unlock ride requests.');
+            } else {
+                alert(msg);
+            }
         }
     };
 
@@ -278,36 +301,101 @@ export default function DriverDashboard() {
                                 )}
                             </div>
 
-                            {/* Stats */}
-                            <div className="glass-card" style={{ padding: 24 }}>
-                                <h3 style={{ marginBottom: 16 }}>📊 My Stats</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                                    {[
-                                        { label: 'Total Rides Completed', value: profile?.totalRidesCompleted || 0, icon: '✅', color: '#10b981' },
-                                        { label: 'Total Earnings', value: `₹${profile?.totalEarnings || 0}`, icon: '💰', color: 'var(--accent-teal)' },
-                                        { label: 'Speed Violations', value: profile?.speedViolationCount || 0, icon: '⚠️', color: profile?.speedViolationCount > 0 ? '#ef4444' : '#6b7280' },
-                                        { label: 'Training Badge', value: profile?.trainingBadge ? 'Earned ✅' : 'Not earned', icon: '🎓', color: profile?.trainingBadge ? 'var(--accent-teal)' : '#6b7280' },
-                                    ].map(s => (
-                                        <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                                            <span style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>{s.icon} {s.label}</span>
-                                            <span style={{ fontWeight: 700, color: s.color, fontSize: '0.9rem' }}>{s.value}</span>
+                            <div className="grid-2" style={{ marginBottom: 20 }}>
+                                {/* Stats */}
+                                <div className="glass-card" style={{ padding: 24 }}>
+                                    <h3 style={{ marginBottom: 16 }}>📊 My Stats</h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                        {[
+                                            { label: 'Total Rides Completed', value: profile?.totalRidesCompleted || 0, icon: '✅', color: '#10b981' },
+                                            { label: 'Total Earnings', value: `₹${profile?.totalEarnings || 0}`, icon: '💰', color: 'var(--accent-teal)' },
+                                            { label: 'Speed Violations', value: profile?.speedViolationCount || 0, icon: '⚠️', color: profile?.speedViolationCount > 0 ? '#ef4444' : '#6b7280' },
+                                            { label: 'Training Badge', value: profile?.trainingBadge ? 'Earned ✅' : 'Not earned', icon: '🎓', color: profile?.trainingBadge ? 'var(--accent-teal)' : '#6b7280' },
+                                        ].map(s => (
+                                            <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                                                <span style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>{s.icon} {s.label}</span>
+                                                <span style={{ fontWeight: 700, color: s.color, fontSize: '0.9rem' }}>{s.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Referral Section */}
+                                <div className="glass-card" style={{ padding: 24, background: 'linear-gradient(145deg, var(--bg-card), rgba(0, 212, 170, 0.03))', border: '1px solid rgba(0, 212, 170, 0.2)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                                        <h3>🎁 Refer & Earn</h3>
+                                        {referralStatus?.referralValidTill && (
+                                            <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
+                                                Valid till: {new Date(referralStatus.referralValidTill).toLocaleDateString('en-IN')}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+                                        Share your code with other drivers. Get <strong>Free Rides</strong> and unlock going online (requires 1 referral).
+                                    </p>
+
+                                    <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={referralStatus?.referralCode || 'Loading...'}
+                                            style={{ flex: 1, padding: '10px 14px', borderRadius: 8, background: 'rgba(0,0,0,0.2)', color: 'var(--accent-teal)', border: '1px dashed var(--accent-teal)', fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer' }}
+                                            onClick={(e) => {
+                                                if (referralStatus?.referralCode) {
+                                                    navigator.clipboard.writeText(referralStatus.referralCode);
+                                                    const original = e.target.value;
+                                                    e.target.value = 'COPIED!';
+                                                    setTimeout(() => e.target.value = original, 2000);
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            className="btn btn-primary"
+                                            style={{ padding: '0 16px' }}
+                                            onClick={() => {
+                                                const code = referralStatus?.referralCode;
+                                                if (!code) return;
+                                                const url = `${window.location.origin}/register/driver?ref=${code}`;
+                                                const text = `Hey! Join Go Driver DaaS Platform using my referral code: ${code}. Link: ${url}`;
+                                                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+                                            }}
+                                        >
+                                            Share 📱
+                                        </button>
+                                    </div>
+
+                                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 14 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.85rem' }}>
+                                            <span style={{ color: 'var(--text-secondary)' }}>Total Referrals:</span>
+                                            <span style={{ fontWeight: 700, color: '#fff' }}>{referralStatus?.referralCount || 0} / 10 limit</span>
                                         </div>
-                                    ))}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                            <span style={{ color: 'var(--text-secondary)' }}>Current Reward:</span>
+                                            {referralStatus?.freeRidesExpiryDate && new Date() < new Date(referralStatus.freeRidesExpiryDate) ? (
+                                                <span style={{ fontWeight: 700, color: 'var(--accent-teal)' }}>
+                                                    Free Rides till {new Date(referralStatus.freeRidesExpiryDate).toLocaleDateString('en-IN')}
+                                                </span>
+                                            ) : (
+                                                <span style={{ fontWeight: 600, color: '#ef4444' }}>None active</span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Quick Actions */}
-                        <div className="glass-card" style={{ padding: 20 }}>
-                            <h3 style={{ marginBottom: 14 }}>Quick Actions</h3>
-                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                                <button className="btn btn-secondary" onClick={() => navigate('/driver/subscription')}>💎 Subscription Plans</button>
-                                <button className="btn btn-secondary" onClick={() => navigate('/driver/training')}>🎓 AI Training</button>
+                            {/* Quick Actions */}
+                            <div className="glass-card" style={{ padding: 20 }}>
+                                <h3 style={{ marginBottom: 14 }}>Quick Actions</h3>
+                                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                    <button className="btn btn-secondary" onClick={() => navigate('/driver/subscription')}>💎 Subscription Plans</button>
+                                    <button className="btn btn-secondary" onClick={() => navigate('/driver/training')}>🎓 AI Training</button>
+                                </div>
                             </div>
                         </div>
                     </>
                 )}
             </main>
+            <AIChatWidget />
         </div>
     );
 }

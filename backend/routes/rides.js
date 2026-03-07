@@ -132,13 +132,17 @@ router.post('/:id/end', protect, authorize('driver'), async (req, res) => {
             order.pickupLocation
         );
 
+        const driver = await Driver.findById(req.user.id);
+
         let returnDistance = 0;
         if (dropVerification === 'ReturnCharged') {
-            const driver = await Driver.findById(req.user.id);
             if (driver.homeLocation && driver.homeLocation.lat) {
                 returnDistance = calculateReturnDistance(order.dropLocation, driver.homeLocation);
             }
         }
+
+        // Approximate ride distance for referral validation (pickup to drop)
+        const rideDistance = calculateReturnDistance(order.pickupLocation, rideEndLocation);
 
         const fareData = calculateFare({
             rideStartTime: order.rideStartTime,
@@ -146,6 +150,8 @@ router.post('/:id/end', protect, authorize('driver'), async (req, res) => {
             vehicleType: order.vehicleType,
             dropVerification,
             returnDistance,
+            driver,
+            rideDistance
         });
 
         // ── Transactional Update — Deduct from Owner, Credit to Driver ──

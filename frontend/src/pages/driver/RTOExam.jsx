@@ -5,12 +5,19 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 export default function RTOExam() {
-    const [status, setStatus] = useState('intro'); // intro, loading, quiz, result
-    const [testData, setTestData] = useState({ testId: '', questions: [], limit: 30, passMark: 11, attemptsUsed: 0 });
-    const [currentIdx, setCurrentIdx] = useState(0);
-    const [answers, setAnswers] = useState({});
-    const [timeLeft, setTimeLeft] = useState(1800); // 30 mins
-    const [result, setResult] = useState(null);
+    const savedState = JSON.parse(sessionStorage.getItem('rto_exam_state')) || {};
+    const [status, setStatus] = useState(savedState.status || 'intro'); // intro, loading, quiz, result
+    const [testData, setTestData] = useState(savedState.testData || { testId: '', questions: [], limit: 30, passMark: 11, attemptsUsed: 0 });
+    const [currentIdx, setCurrentIdx] = useState(savedState.currentIdx || 0);
+    const [answers, setAnswers] = useState(savedState.answers || {});
+    const [timeLeft, setTimeLeft] = useState(savedState.timeLeft || 1800); // 30 mins
+    const [result, setResult] = useState(savedState.result || null);
+
+    // Persist to session storage
+    useEffect(() => {
+        sessionStorage.setItem('rto_exam_state', JSON.stringify({ status, testData, currentIdx, answers, timeLeft, result }));
+    }, [status, testData, currentIdx, answers, timeLeft, result]);
+
     const [error, setError] = useState('');
     const [lang, setLang] = useState('English');
     const [statusInfo, setStatusInfo] = useState({ attemptsUsed: 0, maxAttempts: 3 });
@@ -195,7 +202,7 @@ export default function RTOExam() {
                             {testData.questions[currentIdx].imageUrl && (
                                 <div style={{ textAlign: 'center', marginBottom: 24, background: '#fff', padding: 20, borderRadius: 12 }}>
                                     <img
-                                        src={testData.questions[currentIdx].imageUrl.startsWith('http') || testData.questions[currentIdx].imageUrl.startsWith('/signs/') ? testData.questions[currentIdx].imageUrl : `${API_BASE.replace('/api', '')}${testData.questions[currentIdx].imageUrl}`}
+                                        src={testData.questions[currentIdx].imageUrl.startsWith('http') ? testData.questions[currentIdx].imageUrl : testData.questions[currentIdx].imageUrl.startsWith('/signs') ? testData.questions[currentIdx].imageUrl : `${import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'}${testData.questions[currentIdx].imageUrl.startsWith('/') ? '' : '/'}${testData.questions[currentIdx].imageUrl}`}
                                         alt="Traffic Sign"
                                         style={{ maxHeight: 200, maxWidth: '100%' }}
                                     />

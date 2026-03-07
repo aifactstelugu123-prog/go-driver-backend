@@ -22,6 +22,11 @@ const ownerSchema = new mongoose.Schema(
         profileLocked: { type: Boolean, default: false }, // locked after admin verification
         acceptedTnC: { type: Boolean, default: false }, // Terms and Conditions accepted
 
+        // ── Referral Program ──────────────────────────────
+        referralCode: { type: String, unique: true, sparse: true, trim: true, uppercase: true },
+        freeUsageExpiryDate: { type: Date }, // 1 month from registration
+        lastReferralPopupSeen: { type: Date }, // To track daily popup limit
+
         // ── Identity Numbers ──────────────────────────────
         aadhaarNumber: { type: String, trim: true },
         panNumber: { type: String, trim: true, uppercase: true },
@@ -36,6 +41,14 @@ const ownerSchema = new mongoose.Schema(
         profilePhoto: { type: String },
         rating: { type: Number, default: 5, min: 1, max: 5 },
         ratingCount: { type: Number, default: 0 },
+
+        // ── Document Management System ────────────────────
+        documents_locked: { type: Boolean, default: false },
+        edit_request_status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+        edit_permission_enabled: { type: Boolean, default: false },
+        edit_request_reason: { type: String, default: '' },
+        edit_request_desc: { type: String, default: '' },
+        edit_request_date: { type: Date },
         // Wallet
         walletBalance: { type: Number, default: 0 },
         walletTransactions: [walletTransactionSchema],

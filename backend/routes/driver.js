@@ -34,22 +34,31 @@ router.post(
     ]),
     async (req, res) => {
         try {
-            const { name, phone, aadhaarNumber, vehicleSkills, homeLat, homeLng, googleToken } = req.body;
+            const { name, phone, aadhaarNumber, vehicleSkills, homeLat, homeLng, googleToken, email, otp } = req.body;
 
-            if (!name || !phone || !aadhaarNumber || !googleToken)
-                return res.status(400).json({ success: false, message: 'Name, phone, Aadhaar number, and Google authentication are required.' });
+            if (!name || !phone || !aadhaarNumber)
+                return res.status(400).json({ success: false, message: 'Name, phone, and Aadhaar number are required.' });
 
             let email = '';
-            // 1. Verify the Google token
-            try {
-                const decodedToken = await admin.auth().verifyIdToken(googleToken);
-                email = decodedToken.email;
-
-                if (!email) {
-                    return res.status(400).json({ success: false, message: 'Google token must contain an email address.' });
+            // 1. Verify the Google token OR Email+OTP
+            if (googleToken && googleToken !== 'null') {
+                try {
+                    const decodedToken = await admin.auth().verifyIdToken(googleToken);
+                    email = decodedToken.email;
+                    if (!email) return res.status(400).json({ success: false, message: 'Google token must contain an email address.' });
+                } catch (fbError) {
+                    return res.status(401).json({ success: false, message: 'Invalid or expired Google authentication token.' });
                 }
-            } catch (fbError) {
-                return res.status(401).json({ success: false, message: 'Invalid or expired Google authentication token.' });
+            } else if (req.body.email && req.body.otp) {
+                const OTP = require('../models/OTP');
+                const otpRecord = await OTP.findOne({ email: req.body.email.trim().toLowerCase() });
+                if (!otpRecord || otpRecord.otp !== req.body.otp) {
+                    return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+                }
+                email = req.body.email.trim().toLowerCase();
+                // We'll delete the OTP later right before saving the driver
+            } else {
+                return res.status(400).json({ success: false, message: 'Google Authentication or Email OTP is required.' });
             }
 
             const existing = await Driver.findOne({ $or: [{ phone }, { aadhaarNumber }] });
@@ -57,6 +66,21 @@ router.post(
                 return res.status(409).json({ success: false, message: 'Driver with this phone or Aadhaar number already exists.' });
 
             const skills = Array.isArray(vehicleSkills) ? vehicleSkills : JSON.parse(vehicleSkills || '[]');
+
+            // Build 3 months validity for referral program
+            const referralValidTill = new Date();
+            referralValidTill.setMonth(referralValidTill.getMonth() + 3);
+
+            let referredById = null;
+            if (req.body.referralCode) {
+                const referrer = await Driver.findOne({ referralCode: req.body.referralCode.toUpperCase() });
+                if (referrer && referrer.referralValidTill && referrer.referralValidTill > new Date() && referrer.referralCount < 10) {
+                    referredById = referrer._id;
+                    // Note: We don't increment referrer count yet until the new driver is approved by admin (per the logic, verify first)
+                    // Wait, the logic says "Completes login + account verified".
+                    // Let's just link it here. We will increment it when the admin approves the driver.
+                }
+            }
 
             const driver = new Driver({
                 name,
@@ -72,9 +96,18 @@ router.post(
                 },
                 profilePhoto: req.files?.photo?.[0] ? `/uploads/drivers/${req.files.photo[0].filename}` : '',
                 isVerified: true, // Authenticated via Google
+                referralCode: `DRV${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
+                referralValidTill,
+                referredBy: referredById
             });
 
             await driver.save();
+
+            // Cleanup OTP if used
+            if (!googleToken || googleToken === 'null') {
+                const OTP = require('../models/OTP');
+                await OTP.deleteOne({ email });
+            }
 
             res.status(201).json({ success: true, message: 'Registration submitted successfully. Await admin approval.' });
         } catch (err) {
@@ -100,6 +133,7 @@ router.put('/online', protect, authorize('driver'), async (req, res) => {
     try {
         const driver = await Driver.findById(req.user.id);
         if (!driver.isApproved) return res.status(403).json({ success: false, message: 'Your account is not approved by admin yet.' });
+        if (driver.referralCount < 1) return res.status(403).json({ success: false, message: 'Refer at least 1 member to start accepting rides.' });
 
         const now = new Date();
         const hasActiveSub = driver.subscriptionExpiry && driver.subscriptionExpiry > now;

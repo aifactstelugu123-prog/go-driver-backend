@@ -17,8 +17,10 @@ const getHourlyRate = (vehicleType) => {
  * @param {string} params.vehicleType
  * @param {string} params.dropVerification - 'ValidDrop' | 'ReturnedToPickup' | 'ReturnCharged'
  * @param {number} params.returnDistance - km (only relevant when ReturnCharged)
+ * @param {Object} [params.driver] - Driver document for referral logic
+ * @param {number} [params.rideDistance] - Total ride distance in KM
  */
-const calculateFare = ({ rideStartTime, rideEndTime, vehicleType, dropVerification, returnDistance = 0 }) => {
+const calculateFare = ({ rideStartTime, rideEndTime, vehicleType, dropVerification, returnDistance = 0, driver = null, rideDistance = 0 }) => {
     const hourlyRate = getHourlyRate(vehicleType);
 
     // Ride duration in hours (minimum 1 hour billing)
@@ -55,7 +57,14 @@ const calculateFare = ({ rideStartTime, rideEndTime, vehicleType, dropVerificati
     }
 
     const finalAmount = baseFare + returnCharges;
-    const platformCommission = Math.round((baseFare * PLATFORM_COMMISSION_PERCENT) / 100);
+
+    // --- Referral Free Ride Logic ---
+    let platformCommission = Math.round((baseFare * PLATFORM_COMMISSION_PERCENT) / 100);
+    const hasFreeRides = driver && driver.freeRidesExpiryDate && new Date(driver.freeRidesExpiryDate) > new Date();
+    if (hasFreeRides && rideDistance <= 5) {
+        platformCommission = 0; // 100% Discount on commission for Nearby rides <= 5KM
+    }
+
     const driverEarnings = baseFare - platformCommission; // commission only on baseFare
 
     return {

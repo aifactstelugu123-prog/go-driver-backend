@@ -20,9 +20,12 @@ export default function DriverRegister() {
         aadhaarNumber: '',
         vehicleSkills: [],
         homeLat: '', homeLng: '',
+        referralCode: initialState.referralCode || new URLSearchParams(window.location.search).get('ref') || '',
     });
 
     const [googleToken, setGoogleToken] = useState(initialState.googleToken || null);
+    const [email] = useState(initialState.email || null);
+    const [otp] = useState(initialState.otp || null);
 
     const [files, setFiles] = useState({ drivingLicense: null, tenthCertificate: null, photo: null });
     const [loading, setLoading] = useState(false);
@@ -66,7 +69,7 @@ export default function DriverRegister() {
     const handleSubmit = async () => {
         if (form.vehicleSkills.length === 0) return setError('Select at least one vehicle skill.');
         if (!form.homeLat || !form.homeLng) return setError('Please enter your home location.');
-        if (!googleToken) return setError('Google Account not linked.');
+        if (!googleToken && (!email || !otp)) return setError('Google Account or Email Verification not linked.');
 
         setLoading(true); setError('');
         try {
@@ -79,8 +82,15 @@ export default function DriverRegister() {
             if (files.drivingLicense) fd.append('drivingLicense', files.drivingLicense);
             if (files.tenthCertificate) fd.append('tenthCertificate', files.tenthCertificate);
 
-            // Append Google Token
-            fd.append('googleToken', googleToken);
+            if (files.tenthCertificate) fd.append('tenthCertificate', files.tenthCertificate);
+
+            // Append Auth Tokens & Referral
+            if (googleToken) fd.append('googleToken', googleToken);
+            if (email && otp) {
+                fd.append('email', email);
+                fd.append('otp', otp);
+            }
+            if (form.referralCode) fd.append('referralCode', form.referralCode);
 
             await registerDriver(fd);
             setSuccess(true);
@@ -130,15 +140,15 @@ export default function DriverRegister() {
 
                 {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#ef4444', fontSize: '0.85rem' }}>{error}</div>}
 
-                {/* Step 0: Basic Info & Google Link */}
+                {/* Step 0: Basic Info & Auth Link */}
                 {step === 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        {!googleToken ? (
+                        {!googleToken && !email ? (
                             <>
                                 <p style={{ textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                     First, link your Google account for secure login.
                                 </p>
-                                <button onClick={handleGoogleLogin} disabled={loading} style={{
+                                <button type="button" onClick={handleGoogleLogin} disabled={loading} style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
                                     background: '#fff', color: '#000', border: 'none', borderRadius: 12, padding: '14px',
                                     fontSize: '1rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', width: '100%'
@@ -149,7 +159,7 @@ export default function DriverRegister() {
                         ) : (
                             <>
                                 <div style={{ textAlign: 'center', padding: '12px', background: 'rgba(0,212,170,0.1)', borderRadius: 8, color: 'var(--accent-teal)', fontSize: '0.9rem', fontWeight: 500 }}>
-                                    ✅ Google Account Linked
+                                    ✅ {googleToken ? 'Google Account Linked' : `Email Verified: ${email}`}
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Full Name *</label>
@@ -166,6 +176,12 @@ export default function DriverRegister() {
                                     <input className="form-input" type="text" placeholder="12-digit Aadhaar" value={form.aadhaarNumber}
                                         onChange={e => setForm({ ...form, aadhaarNumber: e.target.value.replace(/\D/g, '').slice(0, 12) })} maxLength={12} />
                                 </div>
+                                <div className="form-group">
+                                    <label className="form-label">🎁 Referral Code (Optional)</label>
+                                    <input className="form-input" type="text" placeholder="e.g. DRV123" value={form.referralCode}
+                                        onChange={e => setForm({ ...form, referralCode: e.target.value.toUpperCase() })} maxLength={15}
+                                        style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '0.08em' }} />
+                                </div>
                                 <button className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
                                     onClick={handleNextStep0} disabled={loading}>
                                     Next: Upload Documents →
@@ -176,87 +192,91 @@ export default function DriverRegister() {
                 )}
 
                 {/* Step 1: Documents */}
-                {step === 1 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        {[
-                            { key: 'photo', label: '🤳 Profile Photo', hint: 'Clear face photo (JPG/PNG)' },
-                            { key: 'drivingLicense', label: '🪪 Driving License', hint: 'Front side (JPG/PNG/PDF)' },
-                            { key: 'tenthCertificate', label: '📄 10th Pass Certificate', hint: 'Marksheet (JPG/PNG/PDF)' },
-                        ].map(({ key, label, hint }) => (
-                            <div key={key} className="form-group">
-                                <label className="form-label">{label}</label>
-                                <div style={{ border: `2px dashed ${files[key] ? 'var(--accent-teal)' : 'var(--border)'}`, borderRadius: 10, padding: 16, textAlign: 'center', transition: 'all 0.2s', background: files[key] ? 'rgba(0,212,170,0.05)' : 'transparent' }}>
-                                    <input type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }} id={`file-${key}`}
-                                        onChange={e => setFiles({ ...files, [key]: e.target.files[0] })} />
-                                    <label htmlFor={`file-${key}`} style={{ cursor: 'pointer' }}>
-                                        <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>{files[key] ? '✅' : '📁'}</div>
-                                        <div style={{ fontSize: '0.8rem', color: files[key] ? 'var(--accent-teal)' : 'var(--text-muted)' }}>
-                                            {files[key] ? files[key].name : hint}
-                                        </div>
-                                    </label>
+                {
+                    step === 1 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {[
+                                { key: 'photo', label: '🤳 Profile Photo', hint: 'Clear face photo (JPG/PNG)' },
+                                { key: 'drivingLicense', label: '🪪 Driving License', hint: 'Front side (JPG/PNG/PDF)' },
+                                { key: 'tenthCertificate', label: '📄 10th Pass Certificate', hint: 'Marksheet (JPG/PNG/PDF)' },
+                            ].map(({ key, label, hint }) => (
+                                <div key={key} className="form-group">
+                                    <label className="form-label">{label}</label>
+                                    <div style={{ border: `2px dashed ${files[key] ? 'var(--accent-teal)' : 'var(--border)'}`, borderRadius: 10, padding: 16, textAlign: 'center', transition: 'all 0.2s', background: files[key] ? 'rgba(0,212,170,0.05)' : 'transparent' }}>
+                                        <input type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }} id={`file-${key}`}
+                                            onChange={e => setFiles({ ...files, [key]: e.target.files[0] })} />
+                                        <label htmlFor={`file-${key}`} style={{ cursor: 'pointer' }}>
+                                            <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>{files[key] ? '✅' : '📁'}</div>
+                                            <div style={{ fontSize: '0.8rem', color: files[key] ? 'var(--accent-teal)' : 'var(--text-muted)' }}>
+                                                {files[key] ? files[key].name : hint}
+                                            </div>
+                                        </label>
+                                    </div>
                                 </div>
+                            ))}
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <button className="btn btn-secondary" onClick={() => setStep(0)} style={{ flex: 1, justifyContent: 'center' }}>← Back</button>
+                                <button className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }}
+                                    onClick={() => { setError(''); setStep(2); }}>
+                                    Next →
+                                </button>
                             </div>
-                        ))}
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button className="btn btn-secondary" onClick={() => setStep(0)} style={{ flex: 1, justifyContent: 'center' }}>← Back</button>
-                            <button className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }}
-                                onClick={() => { setError(''); setStep(2); }}>
-                                Next →
-                            </button>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {/* Step 2: Skills & Location */}
-                {step === 2 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div className="form-group">
-                            <label className="form-label">Vehicle Skills * (select all you can drive)</label>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
-                                {VEHICLE_SKILLS.map(skill => (
-                                    <button type="button" key={skill} onClick={() => toggleSkill(skill)}
-                                        style={{
-                                            padding: '10px 12px', borderRadius: 10,
-                                            border: `2px solid ${form.vehicleSkills.includes(skill) ? 'var(--accent-teal)' : 'var(--border)'}`,
-                                            background: form.vehicleSkills.includes(skill) ? 'rgba(0,212,170,0.12)' : 'var(--bg-card)',
-                                            color: form.vehicleSkills.includes(skill) ? 'var(--accent-teal)' : 'var(--text-secondary)',
-                                            fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
-                                        }}>
-                                        {form.vehicleSkills.includes(skill) ? '✅ ' : ''}{skill}
-                                    </button>
-                                ))}
+                {
+                    step === 2 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div className="form-group">
+                                <label className="form-label">Vehicle Skills * (select all you can drive)</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
+                                    {VEHICLE_SKILLS.map(skill => (
+                                        <button type="button" key={skill} onClick={() => toggleSkill(skill)}
+                                            style={{
+                                                padding: '10px 12px', borderRadius: 10,
+                                                border: `2px solid ${form.vehicleSkills.includes(skill) ? 'var(--accent-teal)' : 'var(--border)'}`,
+                                                background: form.vehicleSkills.includes(skill) ? 'rgba(0,212,170,0.12)' : 'var(--bg-card)',
+                                                color: form.vehicleSkills.includes(skill) ? 'var(--accent-teal)' : 'var(--text-secondary)',
+                                                fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
+                                            }}>
+                                            {form.vehicleSkills.includes(skill) ? '✅ ' : ''}{skill}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">🏠 Home Location (for return charge calc)</label>
+                                <div className="grid-2">
+                                    <input className="form-input" type="number" step="any" placeholder="Latitude" value={form.homeLat}
+                                        onChange={e => setForm({ ...form, homeLat: e.target.value })} />
+                                    <input className="form-input" type="number" step="any" placeholder="Longitude" value={form.homeLng}
+                                        onChange={e => setForm({ ...form, homeLng: e.target.value })} />
+                                </div>
+                                <button type="button" className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}
+                                    onClick={() => navigator.geolocation.getCurrentPosition(p => {
+                                        setForm(f => ({ ...f, homeLat: p.coords.latitude.toFixed(6), homeLng: p.coords.longitude.toFixed(6) }));
+                                    })}>
+                                    🎯 Use Current Location
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <button className="btn btn-secondary" onClick={() => setStep(1)} style={{ flex: 1, justifyContent: 'center' }}>← Back</button>
+                                <button id="submit-driver-reg" className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }} onClick={handleSubmit} disabled={loading}>
+                                    {loading ? 'Submitting...' : '🚀 Submit Application'}
+                                </button>
                             </div>
                         </div>
-
-                        <div className="form-group">
-                            <label className="form-label">🏠 Home Location (for return charge calc)</label>
-                            <div className="grid-2">
-                                <input className="form-input" type="number" step="any" placeholder="Latitude" value={form.homeLat}
-                                    onChange={e => setForm({ ...form, homeLat: e.target.value })} />
-                                <input className="form-input" type="number" step="any" placeholder="Longitude" value={form.homeLng}
-                                    onChange={e => setForm({ ...form, homeLng: e.target.value })} />
-                            </div>
-                            <button type="button" className="btn btn-secondary btn-sm" style={{ marginTop: 8 }}
-                                onClick={() => navigator.geolocation.getCurrentPosition(p => {
-                                    setForm(f => ({ ...f, homeLat: p.coords.latitude.toFixed(6), homeLng: p.coords.longitude.toFixed(6) }));
-                                })}>
-                                🎯 Use Current Location
-                            </button>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button className="btn btn-secondary" onClick={() => setStep(1)} style={{ flex: 1, justifyContent: 'center' }}>← Back</button>
-                            <button id="submit-driver-reg" className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }} onClick={handleSubmit} disabled={loading}>
-                                {loading ? 'Submitting...' : '🚀 Submit Application'}
-                            </button>
-                        </div>
-                    </div>
-                )}
+                    )
+                }
 
                 <p style={{ marginTop: 20, textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     Already registered? <Link to="/login" style={{ color: 'var(--accent-teal)' }}>Login here</Link>
                 </p>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

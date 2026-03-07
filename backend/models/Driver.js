@@ -14,6 +14,14 @@ const driverSchema = new mongoose.Schema(
         profileLocked: { type: Boolean, default: false }, // locked after admin approval
         acceptedTnC: { type: Boolean, default: false }, // Terms and Conditions accepted
 
+        // ── Referral Program ──────────────────────────────
+        referralCode: { type: String, unique: true, sparse: true, trim: true, uppercase: true },
+        referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+        referralCount: { type: Number, default: 0 },
+        referralValidTill: { type: Date }, // 3 months from registration
+        currentRewardSlab: { type: Number, default: 0 },
+        freeRidesExpiryDate: { type: Date }, // Expiry date of the free rides reward
+
         // ── Identity Numbers ──────────────────────────────
         panNumber: { type: String, trim: true, uppercase: true },
         licenseNumber: { type: String, trim: true, uppercase: true },
@@ -33,6 +41,14 @@ const driverSchema = new mongoose.Schema(
         profilePhoto: { type: String },
         rating: { type: Number, default: 5, min: 1, max: 5 },
         ratingCount: { type: Number, default: 0 },
+
+        // ── Document Management System ────────────────────
+        documents_locked: { type: Boolean, default: false },
+        edit_request_status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+        edit_permission_enabled: { type: Boolean, default: false },
+        edit_request_reason: { type: String, default: '' },
+        edit_request_desc: { type: String, default: '' },
+        edit_request_date: { type: Date },
 
         // Skills: vehicle types the driver can operate
         vehicleSkills: {

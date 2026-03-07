@@ -28,15 +28,24 @@ export default function DriverTraining() {
     const navigate = useNavigate();
     const [modules, setModules] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selected, setSelected] = useState(null); // active module
-    const [quizMode, setQuizMode] = useState(false);
-    const [answers, setAnswers] = useState({});
-    const [result, setResult] = useState(null);
+
+    // Initialize state from sessionStorage if available
+    const savedState = JSON.parse(sessionStorage.getItem('training_state')) || {};
+    const [selected, setSelected] = useState(savedState.selected || null);
+    const [quizMode, setQuizMode] = useState(savedState.quizMode || false);
+    const [answers, setAnswers] = useState(savedState.answers || {});
+    const [result, setResult] = useState(savedState.result || null);
+
     const [submitting, setSubmitting] = useState(false);
     const [lang, setLang] = useState('English');
     const [weeklyModule, setWeeklyModule] = useState(null);
     const [weeklyCleared, setWeeklyCleared] = useState(false);
     const [weekCode, setWeekCode] = useState('');
+
+    // Persist state to sessionStorage whenever it changes
+    useEffect(() => {
+        sessionStorage.setItem('training_state', JSON.stringify({ selected, quizMode, answers, result }));
+    }, [selected, quizMode, answers, result]);
 
     useEffect(() => {
         setLoading(true);
@@ -177,7 +186,7 @@ export default function DriverTraining() {
                                     {q.symbolUrl && (
                                         <div style={{ textAlign: 'center', marginBottom: 16, background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <img
-                                                src={q.symbolUrl.startsWith('http') || q.symbolUrl.startsWith('/signs/') ? q.symbolUrl : `${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${q.symbolUrl}`}
+                                                src={q.symbolUrl.startsWith('http') ? q.symbolUrl : q.symbolUrl.startsWith('/signs') ? q.symbolUrl : `${import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'}${q.symbolUrl.startsWith('/') ? '' : '/'}${q.symbolUrl}`}
                                                 alt="Traffic Sign"
                                                 style={{ height: 120, width: 'auto', maxWidth: '100%', objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }}
                                             />

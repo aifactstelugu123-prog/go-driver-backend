@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import Sidebar from '../../components/Sidebar';
+import AIChatWidget from '../../components/AIChatWidget';
 import { getOwnerProfile, getOwnerRides, getVehicles, acceptTnC } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -12,6 +13,8 @@ export default function OwnerDashboard() {
     const [vehicles, setVehicles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [rideAlert, setRideAlert] = useState(null); // {driverName, phone, orderId}
+    const [referralStatus, setReferralStatus] = useState(null);
+    const [showReferralPopup, setShowReferralPopup] = useState(false);
 
     // T&C state
     const [showTnC, setShowTnC] = useState(false);
@@ -19,16 +22,55 @@ export default function OwnerDashboard() {
     const [savingTnC, setSavingTnC] = useState(false);
 
     useEffect(() => {
-        Promise.all([getOwnerProfile(), getOwnerRides(), getVehicles()])
-            .then(([p, r, v]) => {
+        const fetchOwnerData = async () => {
+            try {
+                const [p, r, v] = await Promise.all([getOwnerProfile(), getOwnerRides(), getVehicles()]);
                 setRides(r.data.orders || []);
                 setVehicles(v.data.vehicles || []);
                 if (p.data.owner && !p.data.owner.acceptedTnC) {
                     setShowTnC(true);
                 }
-            })
-            .finally(() => setLoading(false));
+
+                // Fetch Referral Data
+                const refToken = localStorage.getItem('token');
+                const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+                const refData = await fetch(`${baseUrl}/referral/status`, {
+                    headers: { 'Authorization': `Bearer ${refToken}` }
+                }).then(res => res.json());
+
+                if (refData.success) {
+                    setReferralStatus(refData);
+                    if (refData.freeUsageExpiryDate && new Date() > new Date(refData.freeUsageExpiryDate)) {
+                        // Free usage expired. Show popup if not seen today.
+                        const lastSeen = refData.lastReferralPopupSeen ? new Date(refData.lastReferralPopupSeen) : null;
+                        const today = new Date();
+                        if (!lastSeen || lastSeen.toDateString() !== today.toDateString()) {
+                            setShowReferralPopup(true);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Dashboard Load Error", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchOwnerData();
     }, []);
+
+    const handleCloseReferralPopup = async () => {
+        setShowReferralPopup(false);
+        try {
+            const refToken = localStorage.getItem('token');
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            await fetch(`${baseUrl}/referral/owner/popup-seen`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${refToken}` }
+            });
+        } catch (e) {
+            console.error("Failed to update popup seen status", e);
+        }
+    };
 
     // Socket: listen for ride accepted by driver
     useEffect(() => {
@@ -111,6 +153,41 @@ export default function OwnerDashboard() {
                     </div>
                 )}
 
+                {/* Daily Referral Popup */}
+                {showReferralPopup && (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                        <div className="glass-card" style={{ maxWidth: 450, width: '100%', padding: 40, background: 'var(--bg-secondary)', border: '2px solid var(--accent-gold)', textAlign: 'center' }}>
+                            <div style={{ fontSize: '3rem', marginBottom: 12 }}>🎁</div>
+                            <h2 style={{ color: 'var(--accent-gold)', marginBottom: 16 }}>Refer 1 Owner This Month!</h2>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
+                                Your 1-month free usage has expired. To continue enjoying bonus benefits, please invite at least 1 new vehicle owner to the platform using your referral code.
+                            </p>
+                            <div style={{ background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 8, marginBottom: 24 }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8 }}>Your Referral Code:</div>
+                                <div style={{ fontFamily: 'monospace', fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-teal)', letterSpacing: '0.1em' }}>
+                                    {referralStatus?.referralCode}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 12 }}>
+                                <button className="btn btn-secondary" onClick={handleCloseReferralPopup} style={{ flex: 1, justifyContent: 'center' }}>
+                                    Maybe Later
+                                </button>
+                                <button className="btn btn-primary" onClick={() => {
+                                    handleCloseReferralPopup();
+                                    const code = referralStatus?.referralCode;
+                                    if (code) {
+                                        const url = `${window.location.origin}/login?ref=${code}`;
+                                        const text = `Hey! Join Go Driver DaaS Platform using my referral code: ${code}. Link: ${url}`;
+                                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+                                    }
+                                }} style={{ flex: 2, background: 'linear-gradient(135deg, var(--accent-gold), #d97706)', justifyContent: 'center' }}>
+                                    Share Now 📱
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Driver accepted ride notification banner */}
                 {rideAlert && (
                     <div style={{
@@ -181,6 +258,18 @@ export default function OwnerDashboard() {
                                 <button className="btn btn-secondary" onClick={() => navigate('/owner/rides')}>
                                     📋 View All Rides
                                 </button>
+                                <button className="btn btn-secondary" onClick={() => {
+                                    const code = referralStatus?.referralCode;
+                                    if (code) {
+                                        const url = `${window.location.origin}/login?ref=${code}`;
+                                        const text = `Hey! Join Go Driver DaaS Platform using my referral code: ${code}. Link: ${url}`;
+                                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+                                    } else {
+                                        alert("Referral code not loaded yet.");
+                                    }
+                                }} style={{ borderColor: 'var(--accent-gold)', color: 'var(--accent-gold)' }}>
+                                    🎁 Refer & Earn
+                                </button>
                             </div>
                         </div>
 
@@ -243,6 +332,7 @@ export default function OwnerDashboard() {
                     </>
                 )}
             </main>
+            <AIChatWidget />
         </div>
     );
 }

@@ -34,6 +34,7 @@ import AdminPayouts from './pages/admin/Payouts';
 import AdminEarnings from './pages/admin/Earnings';
 import AdminOwners from './pages/admin/Owners';
 import AdminOwnerDetail from './pages/admin/OwnerDetail';
+import AdminDocumentRequests from './pages/admin/DocumentRequests';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { role, loading } = useAuth();
@@ -65,7 +66,6 @@ function App() {
                     <Route path="/owner/rides/:id" element={<ProtectedRoute allowedRoles={['owner']}><ActiveRide /></ProtectedRoute>} />
                     <Route path="/owner/wallet" element={<ProtectedRoute allowedRoles={['owner']}><OwnerWallet /></ProtectedRoute>} />
                     <Route path="/owner/profile" element={<ProtectedRoute allowedRoles={['owner']}><OwnerProfile /></ProtectedRoute>} />
-                    <Route path="/owner/rto-exam" element={<ProtectedRoute allowedRoles={['owner', 'driver']}><RTOExam /></ProtectedRoute>} />
 
                     {/* Driver */}
                     <Route path="/driver" element={<ProtectedRoute allowedRoles={['driver']}><DriverDashboard /></ProtectedRoute>} />
@@ -81,6 +81,7 @@ function App() {
                     <Route path="/admin/drivers" element={<ProtectedRoute allowedRoles={['admin']}><AdminDrivers /></ProtectedRoute>} />
                     <Route path="/admin/owners" element={<ProtectedRoute allowedRoles={['admin']}><AdminOwners /></ProtectedRoute>} />
                     <Route path="/admin/owners/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminOwnerDetail /></ProtectedRoute>} />
+                    <Route path="/admin/document-requests" element={<ProtectedRoute allowedRoles={['admin']}><AdminDocumentRequests /></ProtectedRoute>} />
                     <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']}><AdminOrders /></ProtectedRoute>} />
                     <Route path="/admin/violations" element={<ProtectedRoute allowedRoles={['admin']}><AdminViolations /></ProtectedRoute>} />
                     <Route path="/admin/subscriptions" element={<ProtectedRoute allowedRoles={['admin']}><AdminSubscriptions /></ProtectedRoute>} />
