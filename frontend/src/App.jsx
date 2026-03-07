@@ -24,6 +24,7 @@ import DriverActiveRide from './pages/driver/ActiveRide';
 import DriverWallet from './pages/driver/Wallet';
 import DriverProfile from './pages/driver/Profile';
 import RTOExam from './pages/driver/RTOExam';
+import DriverReferral from './pages/driver/Referral';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -78,6 +79,7 @@ function App() {
                     <Route path="/driver/wallet" element={<ProtectedRoute allowedRoles={['driver']}><DriverWallet /></ProtectedRoute>} />
                     <Route path="/driver/profile" element={<ProtectedRoute allowedRoles={['driver']}><DriverProfile /></ProtectedRoute>} />
                     <Route path="/driver/rto-exam" element={<ProtectedRoute allowedRoles={['driver']}><RTOExam /></ProtectedRoute>} />
+                    <Route path="/driver/referral" element={<ProtectedRoute allowedRoles={['driver']}><DriverReferral /></ProtectedRoute>} />
 
                     {/* Admin */}
                     <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />

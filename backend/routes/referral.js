@@ -145,4 +145,21 @@ router.get('/owner/joined', protect, async (req, res) => {
     }
 });
 
+// GET /api/referral/driver/joined — list of drivers who joined using this driver's code
+router.get('/driver/joined', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'driver') return res.status(403).json({ success: false, message: 'Drivers only' });
+        const driver = await Driver.findById(req.user.id).select('referralCode');
+        if (!driver?.referralCode) return res.json({ success: true, drivers: [] });
+
+        const drivers = await Driver.find({ referredByCode: driver.referralCode })
+            .select('name phone email createdAt isApproved')
+            .sort({ createdAt: -1 });
+
+        res.json({ success: true, drivers });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 module.exports = router;

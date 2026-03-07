@@ -17,6 +17,7 @@ const driverNav = [
     { to: '/driver/subscription', label: 'Subscription', icon: '💎' },
     { to: '/driver/training', label: 'Training', icon: '🎓' },
     { to: '/driver/wallet', label: 'My Wallet', icon: '💰' },
+    { to: '/driver/referral', label: 'Refer & Earn', icon: '🎁' },
     { to: '/driver/profile', label: 'My Profile', icon: '👤' },
     { to: '/driver/rto-exam', label: 'Go Driver Exam', icon: '📝' },
 ];
