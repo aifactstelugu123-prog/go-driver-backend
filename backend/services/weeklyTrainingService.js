@@ -2,16 +2,19 @@ const TrainingModule = require('../models/TrainingModule');
 const Driver = require('../models/Driver');
 
 const commonSigns = {
-    stop: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/India_Road_Sign_-_Stop.svg/120px-India_Road_Sign_-_Stop.svg.png',
-    giveWay: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/India_Road_Sign_-_Give_Way.svg/120px-India_Road_Sign_-_Give_Way.svg.png',
-    noEntry: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/India_Road_Sign_-_No_Entry.svg/120px-India_Road_Sign_-_No_Entry.svg.png',
-    noUTurn: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/India_Road_Sign_-_No_U-turn.svg/120px-India_Road_Sign_-_No_U-turn.svg.png',
-    noOvertaking: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/India_Road_Sign_-_No_Overtaking.svg/120px-India_Road_Sign_-_No_Overtaking.svg.png',
-    narrowBridge: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/India_Road_Sign_-_Narrow_Bridge.svg/120px-India_Road_Sign_-_Narrow_Bridge.svg.png',
-    schoolAhead: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/India_Road_Sign_-_School_Ahead.svg/120px-India_Road_Sign_-_School_Ahead.svg.png',
-    menAtWork: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/India_Road_Sign_-_Men_at_work.svg/120px-India_Road_Sign_-_Men_at_work.svg.png',
-    roundabout: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/India_Road_Sign_-_Roundabout.svg/120px-India_Road_Sign_-_Roundabout.svg.png',
-    oneWay: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/India_Road_Sign_-_One_Way.svg/120px-India_Road_Sign_-_One_Way.svg.png'
+    stop: '/signs/stop.png',
+    giveWay: '/signs/giveWay.png',
+    noEntry: '/signs/noEntry.png',
+    noUTurn: '/signs/noUTurn.png',
+    noOvertaking: '/signs/noOvertaking.png',
+    narrowBridge: '/signs/narrowBridge.png',
+    schoolAhead: '/signs/schoolAhead.png',
+    menAtWork: '/signs/menAtWork.png',
+    roundabout: '/signs/roundabout.png',
+    oneWay: '/signs/oneWay.png',
+    rightTurn: '/signs/rightTurn.png',
+    leftTurn: '/signs/leftTurn.png',
+    hornProhibited: '/signs/hornProhibited.png'
 };
 
 const RTO_POOL = [

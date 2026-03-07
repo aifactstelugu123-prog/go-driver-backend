@@ -159,6 +159,7 @@ router.post('/admin/google-login', async (req, res) => {
 router.post('/send-otp', async (req, res) => {
     try {
         let { email } = req.body;
+        console.log(`[OTP ATTEMPT] Email: ${email}`);
         if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
         email = email.trim().toLowerCase();
 
