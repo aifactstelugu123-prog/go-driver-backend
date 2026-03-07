@@ -20,12 +20,15 @@ router.get('/status', protect, async (req, res) => {
                 const validTill = new Date();
                 validTill.setMonth(validTill.getMonth() + 3);
 
-                // $setOnInsert logic via conditional: only set if field is missing
-                driver = await Driver.findOneAndUpdate(
+                // Let's use returnDocument: 'after' for MongoDB 4+
+                let updated = await Driver.findOneAndUpdate(
                     { _id: id, $or: [{ referralCode: { $exists: false } }, { referralCode: null }, { referralCode: '' }] },
                     { $set: { referralCode: newCode, referralValidTill: validTill } },
-                    { new: true }
-                ) || driver;
+                    { new: true, returnDocument: 'after' }
+                );
+
+                // If it evaluates to null, another request beat us to it. Fetch the now-populated document
+                driver = updated || await Driver.findById(id);
             }
 
             return res.json({
@@ -49,11 +52,15 @@ router.get('/status', protect, async (req, res) => {
                 const validTill = new Date();
                 validTill.setDate(validTill.getDate() + 30);
 
-                owner = await Owner.findOneAndUpdate(
+                // Let's use returnDocument: 'after'
+                let updated = await Owner.findOneAndUpdate(
                     { _id: id, $or: [{ referralCode: { $exists: false } }, { referralCode: null }, { referralCode: '' }] },
                     { $set: { referralCode: newCode, freeUsageExpiryDate: validTill } },
-                    { new: true }
-                ) || owner;
+                    { new: true, returnDocument: 'after' }
+                );
+
+                // If updated is null, another request just set it! Refetch to get the latest code.
+                owner = updated || await Owner.findById(id);
             }
 
             // Count how many people joined using this owner's code
