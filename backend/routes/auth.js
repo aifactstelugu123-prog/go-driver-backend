@@ -243,10 +243,23 @@ router.post('/verify-otp', async (req, res) => {
             if (existingPhone) return res.status(400).json({ success: false, message: 'Phone number already registered to another account.' });
 
             if (role === 'owner') {
+                // Validate referral code (cross-table, prevent self-referral)
+                let referredByCode = null;
+                if (referralCode) {
+                    const code = referralCode.trim().toUpperCase();
+                    // Find referrer in either table, ensuring it's not the registering email
+                    const driverRef = await Driver.findOne({ referralCode: code });
+                    const ownerRef = !driverRef ? await Owner.findOne({ referralCode: code, email: { $ne: email } }) : null;
+                    if (driverRef || ownerRef) {
+                        referredByCode = code; // Valid referral code
+                    }
+                }
+
                 user = new Owner({
                     name, email, phone, isVerified: true,
                     referralCode: `OWN${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
-                    freeUsageExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30))
+                    freeUsageExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+                    ...(referredByCode ? { referredByCode } : {}),
                 });
                 await user.save();
             }

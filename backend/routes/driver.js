@@ -72,20 +72,37 @@ router.post(
             referralValidTill.setMonth(referralValidTill.getMonth() + 3);
 
             let referredById = null;
+            let referredByCode = null;
             if (req.body.referralCode) {
-                const referrer = await Driver.findOne({ referralCode: req.body.referralCode.toUpperCase() });
-                if (referrer && referrer.referralValidTill && referrer.referralValidTill > new Date() && referrer.referralCount < 10) {
-                    referredById = referrer._id;
-                    // Note: We don't increment referrer count yet until the new driver is approved by admin (per the logic, verify first)
-                    // Wait, the logic says "Completes login + account verified".
-                    // Let's just link it here. We will increment it when the admin approves the driver.
+                const code = req.body.referralCode.trim().toUpperCase();
+
+                // Prevent self-referral: check if this is the driver's own future code
+                // (can't happen on registration since no code yet, but guard anyway)
+
+                // Look up referrer in BOTH Driver and Owner tables
+                const Owner = require('../models/Owner');
+                const driverReferrer = await Driver.findOne({ referralCode: code });
+                const ownerReferrer = !driverReferrer ? await Owner.findOne({ referralCode: code }) : null;
+                const referrer = driverReferrer || ownerReferrer;
+
+                if (referrer) {
+                    // For driver referrers: check validity + cap
+                    if (driverReferrer) {
+                        if (driverReferrer.referralValidTill && driverReferrer.referralValidTill > new Date() && driverReferrer.referralCount < 10) {
+                            referredById = driverReferrer._id;
+                            referredByCode = code;
+                        }
+                    } else {
+                        // Owner referrer: no cap, just save the code
+                        referredByCode = code;
+                    }
                 }
             }
 
             const driver = new Driver({
                 name,
                 phone,
-                email, // Email from Google Auth
+                email,
                 aadhaarNumber,
                 vehicleSkills: skills,
                 homeLocation: { lat: Number(homeLat), lng: Number(homeLng) },
@@ -95,10 +112,11 @@ router.post(
                     tenthCertificate: { filePath: req.files?.tenthCertificate?.[0] ? `/uploads/drivers/${req.files.tenthCertificate[0].filename}` : '', uploadedAt: new Date() },
                 },
                 profilePhoto: req.files?.photo?.[0] ? `/uploads/drivers/${req.files.photo[0].filename}` : '',
-                isVerified: true, // Authenticated via Google
+                isVerified: true,
                 referralCode: `DRV${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`,
                 referralValidTill,
-                referredBy: referredById
+                referredBy: referredById,
+                referredByCode,
             });
 
             await driver.save();
