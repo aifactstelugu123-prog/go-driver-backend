@@ -35,7 +35,7 @@ router.post(
     ]),
     async (req, res) => {
         try {
-            const { name, phone, aadhaarNumber, vehicleSkills, homeLat, homeLng, googleToken, email, otp } = req.body;
+            const { name, phone, aadhaarNumber, vehicleSkills, homeLat, homeLng, googleToken, otp } = req.body;
 
             if (!name || !phone || !aadhaarNumber)
                 return res.status(400).json({ success: false, message: 'Name, phone, and Aadhaar number are required.' });
