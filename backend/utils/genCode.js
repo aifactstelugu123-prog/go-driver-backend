@@ -1,11 +1,17 @@
 /**
  * Generates a unique 10-character uppercase alphanumeric referral code.
- * Format: [PREFIX][7 random chars]
- * Examples: DRV4KX9WMN2, OWN7ZPQ3RK1
+ * If user ID is provided, creates a deterministic code that will never change.
+ * Format: [PREFIX][7 hex chars of ID]
  */
 const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-function genCode(prefix = '') {
+function genCode(prefix = '', id = null) {
+    if (id) {
+        const idStr = id.toString().toUpperCase();
+        const start = Math.max(0, idStr.length - (10 - prefix.length));
+        return prefix + idStr.substring(start);
+    }
+
     const len = 10 - prefix.length;
     let rand = '';
     for (let i = 0; i < len; i++) {

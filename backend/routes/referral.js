@@ -16,7 +16,7 @@ router.get('/status', protect, async (req, res) => {
 
             // Only generate code if none exists — atomic update prevents race conditions
             if (!driver.referralCode) {
-                const newCode = genCode('DRV');
+                const newCode = genCode('DRV', id);
                 const validTill = new Date();
                 validTill.setMonth(validTill.getMonth() + 3);
 
@@ -48,7 +48,7 @@ router.get('/status', protect, async (req, res) => {
 
             // Only generate code if none exists — atomic update prevents race conditions
             if (!owner.referralCode) {
-                const newCode = genCode('OWN');
+                const newCode = genCode('OWN', id);
                 const validTill = new Date();
                 validTill.setDate(validTill.getDate() + 30);
 
