@@ -169,9 +169,19 @@ router.post('/send-otp', async (req, res) => {
         // 2. Remove any existing OTP for this email
         await OTP.deleteMany({ email });
 
+        // Check if user already exists (Driver or Owner)
+        const isDriver = await Driver.findOne({ email });
+        const isOwner = await Owner.findOne({ email });
+        const userType = isDriver ? 'REGISTERED_DRIVER' : (isOwner ? 'REGISTERED_OWNER' : 'NEW_USER');
+
         // 3. Save new OTP to database
         const otpDoc = new OTP({ email, otp: otpCode });
         await otpDoc.save();
+
+        console.log(`\n-----------------------------------------`);
+        console.log(`🔑 OTP GENERATED: ${otpCode}`);
+        console.log(`📧 SENDING TO: ${email} (${userType})`);
+        console.log(`-----------------------------------------\n`);
 
         // 4. Send Email
         const message = `
@@ -195,7 +205,7 @@ router.post('/send-otp', async (req, res) => {
         res.json({ success: true, message: 'OTP sent successfully to ' + email });
     } catch (err) {
         console.error('[SEND OTP ERROR]', err);
-        res.status(500).json({ success: false, message: 'Error sending OTP. Please try again.' });
+        res.status(500).json({ success: false, message: `Error: ${err.message || 'OTP delivery failed'}` });
     }
 });
 
