@@ -24,6 +24,7 @@ const ownerSchema = new mongoose.Schema(
 
         // ── Referral Program ──────────────────────────────
         referralCode: { type: String, unique: true, sparse: true, trim: true, uppercase: true },
+        referredByCode: { type: String, trim: true, uppercase: true }, // referral code used at signup
         freeUsageExpiryDate: { type: Date }, // 1 month from registration
         lastReferralPopupSeen: { type: Date }, // To track daily popup limit
 

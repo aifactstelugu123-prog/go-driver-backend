@@ -8,6 +8,7 @@ const ownerNav = [
     { to: '/owner/create-ride', label: 'Book Driver', icon: '➕' },
     { to: '/owner/rides', label: 'Ride History', icon: '📋' },
     { to: '/owner/wallet', label: 'My Wallet', icon: '💰' },
+    { to: '/owner/referral', label: 'Refer & Earn', icon: '🎁' },
     { to: '/owner/profile', label: 'My Profile', icon: '👤' },
 ];
 
@@ -30,6 +31,7 @@ const adminNav = [
     { to: '/admin/subscriptions', label: 'Subscriptions', icon: '💳' },
     { to: '/admin/payouts', label: 'Payouts', icon: '💸' },
     { to: '/admin/earnings', label: 'Platform Earnings', icon: '💼' },
+    { to: '/admin/referrals', label: 'Referrals', icon: '🎁' },
 ];
 
 const roleTitles = { owner: 'Vehicle Owner', driver: 'Driver Portal', admin: 'Admin Panel' };

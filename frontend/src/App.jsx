@@ -14,6 +14,7 @@ import OwnerRides from './pages/owner/Rides';
 import ActiveRide from './pages/owner/ActiveRide';
 import OwnerWallet from './pages/owner/Wallet';
 import OwnerProfile from './pages/owner/Profile';
+import OwnerReferral from './pages/owner/Referral';
 
 // Driver Pages
 import DriverDashboard from './pages/driver/Dashboard';
@@ -35,6 +36,7 @@ import AdminEarnings from './pages/admin/Earnings';
 import AdminOwners from './pages/admin/Owners';
 import AdminOwnerDetail from './pages/admin/OwnerDetail';
 import AdminDocumentRequests from './pages/admin/DocumentRequests';
+import AdminReferrals from './pages/admin/Referrals';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { role, loading } = useAuth();
@@ -66,6 +68,7 @@ function App() {
                     <Route path="/owner/rides/:id" element={<ProtectedRoute allowedRoles={['owner']}><ActiveRide /></ProtectedRoute>} />
                     <Route path="/owner/wallet" element={<ProtectedRoute allowedRoles={['owner']}><OwnerWallet /></ProtectedRoute>} />
                     <Route path="/owner/profile" element={<ProtectedRoute allowedRoles={['owner']}><OwnerProfile /></ProtectedRoute>} />
+                    <Route path="/owner/referral" element={<ProtectedRoute allowedRoles={['owner']}><OwnerReferral /></ProtectedRoute>} />
 
                     {/* Driver */}
                     <Route path="/driver" element={<ProtectedRoute allowedRoles={['driver']}><DriverDashboard /></ProtectedRoute>} />
@@ -87,6 +90,7 @@ function App() {
                     <Route path="/admin/subscriptions" element={<ProtectedRoute allowedRoles={['admin']}><AdminSubscriptions /></ProtectedRoute>} />
                     <Route path="/admin/payouts" element={<ProtectedRoute allowedRoles={['admin']}><AdminPayouts /></ProtectedRoute>} />
                     <Route path="/admin/earnings" element={<ProtectedRoute allowedRoles={['admin']}><AdminEarnings /></ProtectedRoute>} />
+                    <Route path="/admin/referrals" element={<ProtectedRoute allowedRoles={['admin']}><AdminReferrals /></ProtectedRoute>} />
 
                     {/* 404 */}
                     <Route path="*" element={<Navigate to="/login" replace />} />

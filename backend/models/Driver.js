@@ -17,6 +17,7 @@ const driverSchema = new mongoose.Schema(
         // ── Referral Program ──────────────────────────────
         referralCode: { type: String, unique: true, sparse: true, trim: true, uppercase: true },
         referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+        referredByCode: { type: String, trim: true, uppercase: true }, // referral code used at signup
         referralCount: { type: Number, default: 0 },
         referralValidTill: { type: Date }, // 3 months from registration
         currentRewardSlab: { type: Number, default: 0 },
