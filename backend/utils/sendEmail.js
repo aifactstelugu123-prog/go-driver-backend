@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
 
 const sendEmail = async (options) => {
     // Determine user and pass based on environment or fallback
@@ -13,20 +14,23 @@ const sendEmail = async (options) => {
         return;
     }
 
-    console.log(`[EMAIL] Attempting to send to: ${options.email} via port 587 (STARTTLS)`);
+    console.log(`[EMAIL] Attempting to send to: ${options.email} via port 587 (IPv4 FORCED)`);
 
     const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 587,
-        secure: false, // false for 587
-        family: 4,     // CRITICAL: Force IPv4 at the socket level
+        secure: false,
+        // STRICTLY FORCE IPv4 using custom lookup
+        lookup: (hostname, options, callback) => {
+            dns.lookup(hostname, { family: 4 }, callback);
+        },
         auth: {
             user: user,
             pass: pass
         },
-        connectionTimeout: 15000,
-        greetingTimeout: 10000,
-        socketTimeout: 20000,
+        connectionTimeout: 20000,
+        greetingTimeout: 20000,
+        socketTimeout: 30000,
         requireTLS: true,
         tls: {
             servername: 'smtp.gmail.com',
