@@ -206,11 +206,10 @@ router.post('/send-otp', async (req, res) => {
             res.json({ success: true, message: 'OTP sent successfully to ' + email });
         } catch (emailErr) {
             console.error('[EMAIL FAILURE]', emailErr.message);
-            // Return success anyway so they can use the Master OTP
-            res.json({
-                success: true,
-                message: 'OTP generated. If you don\'t receive it, use master code 123456 for now.',
-                deliveryStatus: 'failed'
+            // Even if email fails, return a 500 so front-end knows it didn't send
+            res.status(500).json({
+                success: false,
+                message: 'Failed to send OTP email. Please try again later.'
             });
         }
     } catch (err) {
@@ -227,15 +226,9 @@ router.post('/verify-otp', async (req, res) => {
         email = email.trim().toLowerCase();
 
         // 1. Validate OTP
-        // Fail-safe: Allow master OTP '123456' for emergency logins during server setup
-        if (otp === '123456') {
-            console.log(`[AUTH] Master OTP used for ${email}`);
-        } else {
-            const otpRecord = await OTP.findOne({ email });
-            if (!otpRecord) return res.status(400).json({ success: false, message: 'OTP expired or not found. Please request a new one.' });
-            if (otpRecord.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
-            await OTP.deleteOne({ _id: otpRecord._id }); // Consume real OTP
-        }
+        const otpRecord = await OTP.findOne({ email });
+        if (!otpRecord) return res.status(400).json({ success: false, message: 'OTP expired or not found. Please request a new one.' });
+        if (otpRecord.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
 
         // 2. Process based on Role
         if (role === 'admin') {
