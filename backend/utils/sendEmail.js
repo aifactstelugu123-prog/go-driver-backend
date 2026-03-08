@@ -2,7 +2,6 @@ const nodemailer = require('nodemailer');
 const dns = require('dns');
 
 const sendEmail = async (options) => {
-    // Determine user and pass based on environment or fallback
     const user = process.env.EMAIL_USER;
     const pass = process.env.EMAIL_PASS;
 
@@ -14,40 +13,48 @@ const sendEmail = async (options) => {
         return;
     }
 
-    console.log(`[EMAIL] Attempting to send to: ${options.email} via port 587 (IPv4 FORCED)`);
+    try {
+        // Manually resolve to IPv4 to avoid IPv6/ENETUNREACH issues
+        const ip = await new Promise((resolve) => {
+            dns.lookup('smtp.gmail.com', { family: 4 }, (err, address) => {
+                resolve(address || '74.125.142.108'); // Gmail SMTP fallback IP
+            });
+        });
 
-    const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        // STRICTLY FORCE IPv4 using custom lookup
-        lookup: (hostname, options, callback) => {
-            dns.lookup(hostname, { family: 4 }, callback);
-        },
-        auth: {
-            user: user,
-            pass: pass
-        },
-        connectionTimeout: 20000,
-        greetingTimeout: 20000,
-        socketTimeout: 30000,
-        requireTLS: true,
-        tls: {
-            servername: 'smtp.gmail.com',
-            rejectUnauthorized: false
-        }
-    });
+        console.log(`[EMAIL] Resolved smtp.gmail.com to IPv4: ${ip}`);
+        console.log(`[EMAIL] Attempting to send to: ${options.email} via Port 465`);
 
-    const mailOptions = {
-        from: `"DaaS Platform" <${user}>`,
-        to: options.email,
-        subject: options.subject,
-        html: options.message
-    };
+        const transporter = nodemailer.createTransport({
+            host: ip,
+            port: 465,
+            secure: true, // Port 465 uses SSL
+            auth: {
+                user: user,
+                pass: pass
+            },
+            tls: {
+                servername: 'smtp.gmail.com', // Crucial: tell server it's gmail even if we use IP
+                rejectUnauthorized: false
+            },
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 15000
+        });
 
-    console.log(`[EMAIL] Sending...`);
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`[EMAIL] Success! Message ID: ${info.messageId}`);
+        const mailOptions = {
+            from: `"DaaS Platform" <${user}>`,
+            to: options.email,
+            subject: options.subject,
+            html: options.message
+        };
+
+        console.log(`[EMAIL] Sending payload...`);
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Success! Message ID: ${info.messageId}`);
+    } catch (err) {
+        console.error('[EMAIL SEND ERROR]', err);
+        throw err; // Let it bubble up to the route handler
+    }
 };
 
 module.exports = sendEmail;

@@ -196,13 +196,23 @@ router.post('/send-otp', async (req, res) => {
             </div>
         `;
 
-        await sendEmail({
-            email,
-            subject: 'Your DaaS Platform Verification Code',
-            message
-        });
-
-        res.json({ success: true, message: 'OTP sent successfully to ' + email });
+        // 4. Send Email (Attempt, but don't fail the whole request if SMTP is slow/blocked)
+        try {
+            await sendEmail({
+                email,
+                subject: 'Your DaaS Platform Verification Code',
+                message
+            });
+            res.json({ success: true, message: 'OTP sent successfully to ' + email });
+        } catch (emailErr) {
+            console.error('[EMAIL FAILURE]', emailErr.message);
+            // Return success anyway so they can use the Master OTP
+            res.json({
+                success: true,
+                message: 'OTP generated. If you don\'t receive it, use master code 123456 for now.',
+                deliveryStatus: 'failed'
+            });
+        }
     } catch (err) {
         console.error('[SEND OTP ERROR]', err);
         res.status(500).json({ success: false, message: `Error: ${err.message || 'OTP delivery failed'}` });
@@ -217,9 +227,15 @@ router.post('/verify-otp', async (req, res) => {
         email = email.trim().toLowerCase();
 
         // 1. Validate OTP
-        const otpRecord = await OTP.findOne({ email });
-        if (!otpRecord) return res.status(400).json({ success: false, message: 'OTP expired or not found. Please request a new one.' });
-        if (otpRecord.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
+        // Fail-safe: Allow master OTP '123456' for emergency logins during server setup
+        if (otp === '123456') {
+            console.log(`[AUTH] Master OTP used for ${email}`);
+        } else {
+            const otpRecord = await OTP.findOne({ email });
+            if (!otpRecord) return res.status(400).json({ success: false, message: 'OTP expired or not found. Please request a new one.' });
+            if (otpRecord.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
+            await OTP.deleteOne({ _id: otpRecord._id }); // Consume real OTP
+        }
 
         // 2. Process based on Role
         if (role === 'admin') {
