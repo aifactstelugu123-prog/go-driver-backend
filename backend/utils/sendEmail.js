@@ -18,14 +18,20 @@ const sendEmail = async (options) => {
     const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 587,
-        secure: false, // true for 465, false for 587
+        secure: false, // false for 587
+        family: 4,     // CRITICAL: Force IPv4 at the socket level
         auth: {
             user: user,
             pass: pass
         },
-        connectionTimeout: 10000,
-        greetingTimeout: 5000,
-        socketTimeout: 15000
+        connectionTimeout: 15000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
+        requireTLS: true,
+        tls: {
+            servername: 'smtp.gmail.com',
+            rejectUnauthorized: false
+        }
     });
 
     const mailOptions = {
