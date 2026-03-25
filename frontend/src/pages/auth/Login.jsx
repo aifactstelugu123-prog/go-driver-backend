@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { auth } from '../../config/firebase';
-import { GoogleAuthProvider, signInWithPopup, getRedirectResult } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, getRedirectResult, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import axios from 'axios';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -16,11 +16,12 @@ export default function Login() {
     const [error, setError] = useState('');
     const [msg, setMsg] = useState('');
 
-    // Mobile OTP flow
+    // Mobile Phone flow (Firebase)
     const [phone, setPhone] = useState('');
     const [otp, setOtp] = useState('');
     const [otpSent, setOtpSent] = useState(false);
     const [sendingOtp, setSendingOtp] = useState(false);
+    const [confirmationResult, setConfirmationResult] = useState(null);
     const [loginTab, setLoginTab] = useState('otp'); // 'otp' | 'password'
     const [password, setPassword] = useState('');
 
@@ -28,9 +29,8 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [emailOtp, setEmailOtp] = useState('');
     const [emailOtpSent, setEmailOtpSent] = useState(false);
-    const [activeMethod, setActiveMethod] = useState('mobile'); // 'mobile' | 'email'
 
-    // Registration (new user)
+    // Registration
     const [requireReg, setRequireReg] = useState(false);
     const [name, setName] = useState('');
     const [newPassword, setNewPassword] = useState('');
@@ -54,6 +54,20 @@ export default function Login() {
 
     const startTimer = () => setTimer(60);
 
+    const setupRecaptcha = (buttonId) => {
+        try {
+            if (window.recaptchaVerifier) {
+                window.recaptchaVerifier.clear();
+            }
+            window.recaptchaVerifier = new RecaptchaVerifier(auth, buttonId || 'recaptcha-container', {
+                'size': 'invisible',
+                'callback': () => { console.log('Recaptcha resolved'); }
+            });
+        } catch (e) {
+            console.error('Recaptcha Error:', e);
+        }
+    };
+
     useEffect(() => {
         const ua = navigator.userAgent || navigator.vendor || window.opera;
         setIsWebView(/Android.*(wv|Version\/.*Chrome)/.test(ua) || /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/.test(ua));
@@ -75,23 +89,27 @@ export default function Login() {
 
     const reset = () => {
         setError(''); setMsg(''); setOtp(''); setOtpSent(false); setTimer(0);
-        setEmailOtp(''); setEmailOtpSent(false);
+        setEmailOtp(''); setEmailOtpSent(false); setConfirmationResult(null);
         setRequireReg(false); setPassword(''); setNewPassword('');
     };
 
-    // ── MOBILE OTP ──────────────────────────────────────────────
+    // ── FIREBASE PHONE OTP ──────────────────────────────────────
     const handleSendOtp = async (e) => {
         if (e) e.preventDefault();
         if (phone.length !== 10) return setError('Enter a valid 10-digit mobile number.');
         setSendingOtp(true); setError(''); setMsg('');
+        
         try {
-            await axios.post(`${BASE_URL}/auth/send-otp`, { phone });
-            setMsg(`OTP sent to +91 ${phone}`);
+            setupRecaptcha('recaptcha-anchor');
+            const formatPhone = `+91${phone}`;
+            const confirmation = await signInWithPhoneNumber(auth, formatPhone, window.recaptchaVerifier);
+            setConfirmationResult(confirmation);
             setOtpSent(true);
-            setActiveMethod('mobile');
+            setMsg(`OTP sent via SMS to +91 ${phone}`);
             startTimer();
-        } catch (e) {
-            setError(e.response?.data?.message || 'Failed to send OTP. Try again.');
+        } catch (err) {
+            console.error('[FIREBASE PHONE ERR]', err);
+            setError(err.message.includes('reCAPTCHA') ? 'Security check failed. Please refresh.' : 'Failed to send SMS. Check your number or try again.');
         }
         setSendingOtp(false);
     };
@@ -99,12 +117,19 @@ export default function Login() {
     const handleVerifyOtp = async (e) => {
         e.preventDefault();
         if (otp.length !== 6) return setError('Enter the 6-digit OTP.');
+        if (!confirmationResult) return setError('Session expired. Please request OTP again.');
+        
         setLoading(true); setError(''); setMsg('');
         try {
-            const { data } = await axios.post(`${BASE_URL}/auth/verify-otp`, { phone, otp, role, referralCode });
+            const result = await confirmationResult.confirm(otp);
+            const idToken = await result.user.getIdToken();
+            
+            // Send token to backend for session create
+            const { data } = await axios.post(`${BASE_URL}/auth/phone-login`, { idToken, role, referralCode });
+            
             if (data.requireRegistration) {
                 if (role === 'driver') {
-                    navigate('/register/driver', { state: { phone, otp, referralCode } });
+                    navigate('/register/driver', { state: { phone, firebaseToken: idToken, referralCode } });
                 } else {
                     setRequireReg(true);
                     setMsg('Welcome! Please enter your name to complete sign-up.');
@@ -113,8 +138,9 @@ export default function Login() {
                 login(data.token, data.user, data.role);
                 navigate(role === 'admin' ? '/admin' : role === 'owner' ? '/owner' : '/driver');
             }
-        } catch (e) {
-            setError(e.response?.data?.message || 'Invalid or expired OTP.');
+        } catch (err) {
+            console.error('[VERIFY ERR]', err);
+            setError('Invalid OTP. Please check and try again.');
         }
         setLoading(false);
     };
@@ -143,7 +169,6 @@ export default function Login() {
             await axios.post(`${BASE_URL}/auth/send-otp`, { email });
             setMsg(`OTP sent to ${email}`);
             setEmailOtpSent(true);
-            setActiveMethod('email');
             startTimer();
         } catch (e) {
             setError(e.response?.data?.message || 'Failed to send OTP.');
@@ -174,12 +199,19 @@ export default function Login() {
         if (!name.trim()) return setError('Enter your full name.');
         setLoading(true); setError('');
         try {
-            const payload = { phone, otp, email, emailOtp, role, name, referralCode };
+            const result = await confirmationResult?.confirm(otp);
+            const firebaseToken = result ? await result.user.getIdToken() : googleToken;
+
+            const payload = { phone, email, emailOtp, role, name, referralCode, idToken: firebaseToken };
             if (newPassword) payload.password = newPassword;
-            const { data } = await axios.post(`${BASE_URL}/auth/verify-otp`, payload);
+            
+            const url = googleToken ? `${BASE_URL}/auth/${role}/google-register` : `${BASE_URL}/auth/phone-login`;
+            const { data } = await axios.post(url, payload);
+            
             login(data.token, data.user, data.role);
             navigate(role === 'owner' ? '/owner' : '/driver');
         } catch (e) {
+            console.error('REG FAIL', e);
             setError(e.response?.data?.message || 'Registration failed.');
         }
         setLoading(false);
@@ -219,20 +251,7 @@ export default function Login() {
         setLoading(false);
     };
 
-    const handleGooglePhoneReg = async () => {
-        if (phone.length !== 10) return setError('Enter a valid 10-digit mobile number.');
-        setLoading(true); setError('');
-        try {
-            const { data } = await axios.post(`${BASE_URL}/auth/${role}/google-register`, { idToken: googleToken, phone, referralCode });
-            login(data.token, data.user, data.role);
-            navigate(role === 'owner' ? '/owner' : '/driver');
-        } catch (e) {
-            setError(e.response?.data?.message || 'Registration failed.');
-        }
-        setLoading(false);
-    };
-
-    // ── REGISTRATION FORM (Conditional Result) ───────────────────
+    // ── REGISTRATION FORM ────────────────────────────────────────
     if (requireReg && !googleToken) {
         return (
             <div className="auth-page">
@@ -302,10 +321,11 @@ export default function Login() {
                                 value={referralCode} onChange={e => setReferralCode(e.target.value.toUpperCase())}
                                 style={{ fontFamily: 'monospace', letterSpacing: '0.08em' }} maxLength={15} />
                         </div>
-                        <button className="btn btn-primary btn-lg" onClick={handleGooglePhoneReg}
+                        <button className="btn btn-primary btn-lg" onClick={handleSendOtp}
                             disabled={loading || phone.length !== 10} style={{ width: '100%', justifyContent: 'center' }}>
-                            {loading ? '⏳ Saving...' : '✅ Complete Registration'}
+                            {loading ? '⏳ Saving...' : '✅ Send Phone Verification'}
                         </button>
+                        <div id="recaptcha-anchor"></div>
                         <button onClick={() => { setRequireReg(false); setGoogleToken(''); reset(); }}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                             ← Back
@@ -316,7 +336,7 @@ export default function Login() {
         );
     }
 
-    // ── MAIN LOGIN PAGE (One-by-one Layout) ──────────────────────
+    // ── MAIN LOGIN PAGE ──────────────────────────────────────────
     return (
         <div className="auth-page">
             <div className="auth-card">
@@ -341,7 +361,7 @@ export default function Login() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     
-                    {/* 1. GOOGLE LOGIN (Primary) */}
+                    {/* 1. GOOGLE LOGIN */}
                     <div className="form-group" style={{ marginBottom: 0 }}>
                         <button onClick={handleGoogleLogin} disabled={loading} style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
@@ -357,9 +377,9 @@ export default function Login() {
                         </button>
                     </div>
 
-                    <div style={dividerStyle}><span>OR</span></div>
+                    <Divider>OR</Divider>
 
-                    {/* 2. MOBILE LOGIN */}
+                    {/* 2. MOBILE LOGIN (Firebase) */}
                     <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '16px' }}>
                         {!otpSent ? (
                             <form onSubmit={handleSendOtp}>
@@ -387,21 +407,22 @@ export default function Login() {
                                             value={password} onChange={e => setPassword(e.target.value)} required />
                                     </div>
                                 )}
+                                <div id="recaptcha-anchor"></div>
                                 <button type="submit" className="btn btn-primary" disabled={sendingOtp || loading} style={{ width: '100%', justifyContent: 'center' }}>
-                                    {loginTab === 'otp' ? (sendingOtp ? '⏳ Sending...' : 'Send OTP →') : (loading ? 'Logging in...' : 'Sign In with Password')}
+                                    {loginTab === 'otp' ? (sendingOtp ? '⏳ Sending...' : 'Continue with Mobile →') : (loading ? 'Logging in...' : 'Sign In with Password')}
                                 </button>
                             </form>
                         ) : (
                             <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                 <div className="form-group" style={{ margin: 0 }}>
-                                    <label className="form-label" style={{ fontSize: '0.75rem' }}>OTP sent to +91 {phone}</label>
+                                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Enter OTP sent to +91 {phone}</label>
                                     <input type="text" className="form-input" placeholder="Enter 6-digit OTP"
                                         value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                         maxLength={6} autoFocus required
                                         style={{ textAlign: 'center', fontSize: '1.4rem', letterSpacing: '8px', fontWeight: 'bold' }} />
                                 </div>
                                 <button type="submit" className="btn btn-primary" disabled={loading || otp.length !== 6} style={{ width: '100%', justifyContent: 'center' }}>
-                                    {loading ? '⏳ Verifying...' : 'Verify & Continue'}
+                                    {loading ? '⏳ Verifying...' : 'Verify & Sign In'}
                                 </button>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <button type="button" onClick={() => { setOtpSent(false); setOtp(''); setTimer(0); }} style={subBtnStyle}>← Back</button>
@@ -413,7 +434,7 @@ export default function Login() {
                         )}
                     </div>
 
-                    <div style={dividerStyle}><span>OR</span></div>
+                    <Divider>OR</Divider>
 
                     {/* 3. EMAIL LOGIN */}
                     <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '16px' }}>
@@ -457,20 +478,14 @@ export default function Login() {
                     </p>
                 )}
 
-                <p style={{ marginTop: 24, textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.6 }}>
-                    🔒 Secure verification provided by DaaS Platform
+                <p style={{ marginTop: 24, textAlign: 'center', fontSize: '0.65rem', color: 'var(--text-muted)', opacity: 0.5 }}>
+                    Protected by reCAPTCHA and Subject to Privacy Policy
                 </p>
             </div>
         </div>
     );
 }
 
-const dividerStyle = {
-    display: 'flex', alignItems: 'center', margin: '4px 0', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, opacity: 0.5,
-    before: { content: '""', flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }
-};
-
-// Simple helper components can't be defined here, so using inline for Divider
 const Divider = ({ children }) => (
     <div style={{ display: 'flex', alignItems: 'center', margin: '4px 0', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 800, opacity: 0.5 }}>
         <div style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />

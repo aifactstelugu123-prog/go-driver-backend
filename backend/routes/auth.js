@@ -157,6 +157,64 @@ router.post('/admin/google-login', async (req, res) => {
 // EMAIL OTP AUTHENTICATION (PASSWORDLESS)
 // ─────────────────────────────────────────────
 
+// POST /api/auth/phone-login
+router.post('/phone-login', async (req, res) => {
+    try {
+        const { idToken, role, name, referralCode, password } = req.body;
+        if (!idToken || !role) return res.status(400).json({ success: false, message: 'ID Token and Role required.' });
+
+        // 1. Verify Firebase token
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        const phone = decodedToken.phone_number.replace(/^\+91/, ''); 
+
+        // 2. Process based on existence
+        const Model = role === 'owner' ? Owner : Driver;
+        let user = await Model.findOne({ phone });
+
+        if (!user) {
+            if (!name) {
+                // Return requireRegistration to trigger frontend form
+                return res.json({ success: true, requireRegistration: true, phone, firebaseToken: idToken });
+            }
+
+            // REGISTRATION FLOW
+            if (role === 'driver') {
+                return res.json({ success: true, requireRegistration: true, phone, firebaseToken: idToken });
+            }
+
+            // Create Owner
+            const hashedPassword = password ? await bcrypt.hash(password, 10) : undefined;
+            user = new Owner({
+                name, phone, isVerified: true,
+                password: hashedPassword,
+                referralCode: genCode('OWN'),
+                freeUsageExpiryDate: new Date(new Date().setDate(new Date().getDate() + 30))
+            });
+
+            // Referral logic
+            if (referralCode) {
+                const code = referralCode.trim().toUpperCase();
+                const referrer = await Driver.findOne({ referralCode: code }) || await Owner.findOne({ referralCode: code });
+                if (referrer) user.referredByCode = code;
+            }
+
+            await user.save();
+        }
+
+        // 3. Login
+        const token = signToken(user._id, role);
+        res.json({
+            success: true,
+            token,
+            role,
+            user: { id: user._id, name: user.name, phone: user.phone, email: user.email, profilePhoto: user.profilePhoto }
+        });
+    } catch (err) {
+        console.error('[PHONE LOGIN ERROR]', err.message);
+        res.status(401).json({ success: false, message: 'Invalid or expired Firebase token.' });
+    }
+});
+
 // POST /api/auth/send-otp
 router.post('/send-otp', async (req, res) => {
     try {
