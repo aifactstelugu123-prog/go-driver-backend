@@ -26,6 +26,7 @@ export default function DriverRegister() {
     const [googleToken, setGoogleToken] = useState(initialState.googleToken || null);
     const [email] = useState(initialState.email || null);
     const [otp] = useState(initialState.otp || null);
+    const [password, setPassword] = useState(initialState.password || '');
 
     const [files, setFiles] = useState({ drivingLicense: null, tenthCertificate: null, photo: null });
     const [loading, setLoading] = useState(false);
@@ -69,7 +70,7 @@ export default function DriverRegister() {
     const handleSubmit = async () => {
         if (form.vehicleSkills.length === 0) return setError('Select at least one vehicle skill.');
         if (!form.homeLat || !form.homeLng) return setError('Please enter your home location.');
-        if (!googleToken && (!email || !otp)) return setError('Google Account or Email Verification not linked.');
+        if (!googleToken && (!email && !form.phone || !otp)) return setError('Google Account or OTP Verification required.');
 
         setLoading(true); setError('');
         try {
@@ -86,10 +87,9 @@ export default function DriverRegister() {
 
             // Append Auth Tokens & Referral
             if (googleToken) fd.append('googleToken', googleToken);
-            if (email && otp) {
-                fd.append('email', email);
-                fd.append('otp', otp);
-            }
+            if (email) fd.append('email', email);
+            if (otp) fd.append('otp', otp);
+            if (password) fd.append('password', password);
             if (form.referralCode) fd.append('referralCode', form.referralCode);
 
             await registerDriver(fd);
@@ -143,7 +143,7 @@ export default function DriverRegister() {
                 {/* Step 0: Basic Info & Auth Link */}
                 {step === 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        {!googleToken && !email ? (
+                        {!googleToken && !email && !form.phone ? (
                             <>
                                 <p style={{ textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                     First, link your Google account for secure login.
@@ -159,7 +159,7 @@ export default function DriverRegister() {
                         ) : (
                             <>
                                 <div style={{ textAlign: 'center', padding: '12px', background: 'rgba(0,212,170,0.1)', borderRadius: 8, color: 'var(--accent-teal)', fontSize: '0.9rem', fontWeight: 500 }}>
-                                    ✅ {googleToken ? 'Google Account Linked' : `Email Verified: ${email}`}
+                                    ✅ {googleToken ? 'Google Account Linked' : email ? `Email Verified: ${email}` : `Mobile Verified: ${form.phone}`}
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Full Name *</label>
@@ -175,6 +175,12 @@ export default function DriverRegister() {
                                     <label className="form-label">Aadhaar Number *</label>
                                     <input className="form-input" type="text" placeholder="12-digit Aadhaar" value={form.aadhaarNumber}
                                         onChange={e => setForm({ ...form, aadhaarNumber: e.target.value.replace(/\D/g, '').slice(0, 12) })} maxLength={12} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">🔑 Set Password (Optional)</label>
+                                    <input className="form-input" type="password" placeholder="e.g. Aaaa@1234" value={password}
+                                        onChange={e => setPassword(e.target.value)} />
+                                    <small style={{ color: 'var(--text-muted)' }}>Set a strong password for future login.</small>
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">🎁 Referral Code (Optional)</label>

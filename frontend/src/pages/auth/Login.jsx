@@ -21,11 +21,13 @@ export default function Login() {
     const [isWebView, setIsWebView] = useState(false);
 
     // Email OTP Auth States
-    const [authMode, setAuthMode] = useState('google'); // 'google' | 'email'
+    const [authMode, setAuthMode] = useState('google'); // 'google' | 'email' | 'mobile'
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');
     const [otpSent, setOtpSent] = useState(false);
     const [sendingOtp, setSendingOtp] = useState(false);
+    const [loginMethod, setLoginMethod] = useState('otp'); // 'otp' | 'password'
+    const [password, setPassword] = useState('');
 
     // Registration States
     const [name, setName] = useState('');
@@ -124,14 +126,16 @@ export default function Login() {
         }
     }, []);
 
-    // Email OTP Handlers
+    // Email & Mobile Handlers
     const handleSendOtp = async (e) => {
         e.preventDefault();
-        if (!email) return setError("Enter your email address to continue.");
+        if (authMode === 'mobile' && (!phone || phone.length !== 10)) return setError("Enter a valid 10-digit mobile number.");
+        if (authMode === 'email' && !email) return setError("Enter your email address to continue.");
         setSendingOtp(true); setError(''); setMsg('');
         try {
             const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-            const { data } = await axios.post(`${baseUrl}/auth/send-otp`, { email });
+            const payload = authMode === 'mobile' ? { phone } : { email };
+            const { data } = await axios.post(`${baseUrl}/auth/send-otp`, payload);
             setMsg(data.message);
             setOtpSent(true);
         } catch (e) {
@@ -146,11 +150,15 @@ export default function Login() {
         setLoading(true); setError(''); setMsg('');
         try {
             const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-            const { data } = await axios.post(`${baseUrl}/auth/verify-otp`, { email, otp, role, referralCode });
+            const payload = { otp, role, referralCode };
+            if (authMode === 'mobile') payload.phone = phone;
+            else payload.email = email;
+
+            const { data } = await axios.post(`${baseUrl}/auth/verify-otp`, payload);
 
             if (data.requireRegistration) {
                 if (role === 'driver') {
-                    navigate('/register/driver', { state: { email, otp, referralCode } });
+                    navigate('/register/driver', { state: { ...payload } });
                 } else {
                     // Owner inline registration
                     setRequirePhone(true);
@@ -162,6 +170,23 @@ export default function Login() {
             }
         } catch (e) {
             setError(e.response?.data?.message || 'Invalid or expired OTP.');
+        }
+        setLoading(false);
+    };
+
+    const handlePasswordLogin = async (e) => {
+        e.preventDefault();
+        if (!phone || phone.length !== 10) return setError("Enter a valid 10-digit mobile number.");
+        if (!password) return setError("Enter your password.");
+
+        setLoading(true); setError(''); setMsg('');
+        try {
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            const { data } = await axios.post(`${baseUrl}/auth/login-password`, { phone, password, role });
+            login(data.token, data.user, data.role);
+            navigate(role === 'admin' ? '/admin' : (role === 'owner' ? '/owner' : '/driver'));
+        } catch (e) {
+            setError(e.response?.data?.message || 'Invalid login details.');
         }
         setLoading(false);
     };
@@ -180,7 +205,8 @@ export default function Login() {
                 const response = await axios.post(`${baseUrl}${endpoint}`, { idToken: googleToken, phone, referralCode });
                 data = response.data;
             } else {
-                const response = await axios.post(`${baseUrl}/auth/verify-otp`, { email, otp, role, referralCode, name, phone });
+                const payload = authMode === 'mobile' ? { phone, name, password, otp, role, referralCode } : { email, otp, role, referralCode, name, phone, password };
+                const response = await axios.post(`${baseUrl}/auth/verify-otp`, payload);
                 data = response.data;
             }
 
@@ -257,6 +283,14 @@ export default function Login() {
                                     <div style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
                                 </div>
 
+                                <button onClick={() => { setAuthMode('mobile'); setLoginMethod('otp'); setError(''); setMsg(''); }} disabled={loading} style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+                                    background: 'rgba(255,255,255,0.04)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '14px',
+                                    fontSize: '1rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', width: '100%', marginBottom: 12
+                                }}>
+                                    📱 Continue with Mobile
+                                </button>
+                                
                                 <button onClick={() => { setAuthMode('email'); setError(''); setMsg(''); }} disabled={loading} style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
                                     background: 'rgba(255,255,255,0.04)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '14px',
@@ -273,13 +307,53 @@ export default function Login() {
                             </>
                         ) : (
                             <>
-                                {!otpSent ? (
+                                {!otpSent && loginMethod === 'otp' ? (
                                     <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                        <div className="form-group">
-                                            <input type="email" className="form-input" placeholder="name@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
-                                        </div>
+                                        {authMode === 'mobile' ? (
+                                            <div className="form-group">
+                                                <div style={{ position: 'relative' }}>
+                                                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: 600 }}>+91</span>
+                                                    <input id="login-phone" className="form-input" type="tel" placeholder="10-digit number"
+                                                        value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                                        style={{ paddingLeft: 48, fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '0.08em' }}
+                                                        maxLength={10} inputMode="numeric" required />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="form-group">
+                                                <input type="email" className="form-input" placeholder="name@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                                            </div>
+                                        )}
                                         <button type="submit" className="btn btn-primary btn-lg" disabled={sendingOtp} style={{ display: 'block', width: '100%', justifyContent: 'center' }}>
                                             {sendingOtp ? '⏳ Sending OTP...' : '📧 Send One-Time Code'}
+                                        </button>
+                                        
+                                        {authMode === 'mobile' && (
+                                            <button type="button" onClick={() => setLoginMethod('password')} style={{ background: 'none', border: 'none', color: 'var(--accent-teal)', cursor: 'pointer', marginTop: 4, fontSize: '0.85rem' }}>
+                                                Login with Password Instead
+                                            </button>
+                                        )}
+                                    </form>
+                                ) : loginMethod === 'password' ? (
+                                    <form onSubmit={handlePasswordLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                        <div className="form-group">
+                                            <div style={{ position: 'relative' }}>
+                                                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: 600 }}>+91</span>
+                                                <input className="form-input" type="tel" placeholder="10-digit number"
+                                                    value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                                    style={{ paddingLeft: 48, fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '0.08em' }}
+                                                    maxLength={10} inputMode="numeric" required />
+                                            </div>
+                                        </div>
+                                        <div className="form-group">
+                                            <input type="password" className="form-input" placeholder="Enter Password" value={password} onChange={e => setPassword(e.target.value)} required />
+                                        </div>
+                                        <button type="submit" className="btn btn-primary btn-lg" disabled={loading} style={{ display: 'block', width: '100%', justifyContent: 'center' }}>
+                                            {loading ? '⏳ Logging in...' : '✅ Login'}
+                                        </button>
+                                        
+                                        <button type="button" onClick={() => setLoginMethod('otp')} style={{ background: 'none', border: 'none', color: 'var(--accent-teal)', cursor: 'pointer', marginTop: 4, fontSize: '0.85rem' }}>
+                                            Login with OTP Instead
                                         </button>
                                     </form>
                                 ) : (
@@ -291,7 +365,7 @@ export default function Login() {
                                             {loading ? '⏳ Verifying...' : '✅ Verify Code & Log In'}
                                         </button>
                                         <button type="button" onClick={() => { setOtpSent(false); setOtp(''); }} style={{ background: 'none', border: 'none', color: 'var(--accent-teal)', cursor: 'pointer', fontSize: '0.85rem' }}>
-                                            Resend / Change Email
+                                            Resend / Change {authMode === 'mobile' ? 'Mobile' : 'Email'}
                                         </button>
                                     </form>
                                 )}
@@ -304,7 +378,7 @@ export default function Login() {
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        {authMode === 'email' && (
+                        {['email', 'mobile'].includes(authMode) && (
                             <div className="form-group">
                                 <label className="form-label">👤 Full Name</label>
                                 <input className="form-input" type="text" placeholder="Enter your full name"
@@ -312,17 +386,27 @@ export default function Login() {
                             </div>
                         )}
 
-                        <div className="form-group">
-                            <label className="form-label">📱 Mobile Number</label>
-                            <div style={{ position: 'relative' }}>
-                                <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: 600 }}>+91</span>
-                                <input id="phone-input" className="form-input" type="tel" placeholder="10-digit number"
-                                    value={phone}
-                                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                                    onKeyDown={e => e.key === 'Enter' && handlePhoneSubmit()}
-                                    style={{ paddingLeft: 48, fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '0.08em' }}
-                                    maxLength={10} inputMode="numeric" />
+                        {authMode !== 'mobile' && (
+                            <div className="form-group">
+                                <label className="form-label">📱 Mobile Number</label>
+                                <div style={{ position: 'relative' }}>
+                                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: 600 }}>+91</span>
+                                    <input id="phone-input" className="form-input" type="tel" placeholder="10-digit number"
+                                        value={phone}
+                                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                        onKeyDown={e => e.key === 'Enter' && handlePhoneSubmit()}
+                                        style={{ paddingLeft: 48, fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '0.08em' }}
+                                        maxLength={10} inputMode="numeric" />
+                                </div>
                             </div>
+                        )}
+
+                        <div className="form-group" style={{ marginTop: 12 }}>
+                            <label className="form-label">🔑 Set Password (Optional)</label>
+                            <input className="form-input" type="password" placeholder="e.g. Aaaa@1234"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)} />
+                            <small style={{ color: 'var(--text-muted)' }}>Set a strong password to login without OTP next time.</small>
                         </div>
 
                         <div className="form-group" style={{ marginTop: 12 }}>

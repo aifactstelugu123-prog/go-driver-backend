@@ -35,13 +35,13 @@ router.post(
     ]),
     async (req, res) => {
         try {
-            const { name, phone, aadhaarNumber, vehicleSkills, homeLat, homeLng, googleToken, otp } = req.body;
+            const { name, phone, aadhaarNumber, vehicleSkills, homeLat, homeLng, googleToken, otp, password } = req.body;
 
             if (!name || !phone || !aadhaarNumber)
                 return res.status(400).json({ success: false, message: 'Name, phone, and Aadhaar number are required.' });
 
             let email = '';
-            // 1. Verify the Google token OR Email+OTP
+            // 1. Verify the Google token OR Email/Phone+OTP
             if (googleToken && googleToken !== 'null') {
                 try {
                     const decodedToken = await admin.auth().verifyIdToken(googleToken);
@@ -50,16 +50,17 @@ router.post(
                 } catch (fbError) {
                     return res.status(401).json({ success: false, message: 'Invalid or expired Google authentication token.' });
                 }
-            } else if (req.body.email && req.body.otp) {
+            } else if ((req.body.email || phone) && otp) {
                 const OTP = require('../models/OTP');
-                const otpRecord = await OTP.findOne({ email: req.body.email.trim().toLowerCase() });
-                if (!otpRecord || otpRecord.otp !== req.body.otp) {
+                const query = req.body.email ? { email: req.body.email.trim().toLowerCase() } : { phone: phone.trim() };
+                const otpRecord = await OTP.findOne(query);
+                if (!otpRecord || otpRecord.otp !== otp) {
                     return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
                 }
-                email = req.body.email.trim().toLowerCase();
+                if (req.body.email) email = req.body.email.trim().toLowerCase();
                 // We'll delete the OTP later right before saving the driver
             } else {
-                return res.status(400).json({ success: false, message: 'Google Authentication or Email OTP is required.' });
+                return res.status(400).json({ success: false, message: 'Google Authentication or Mobile/Email OTP is required.' });
             }
 
             const existing = await Driver.findOne({ $or: [{ phone }, { aadhaarNumber }] });
@@ -120,12 +121,18 @@ router.post(
                 referredByCode,
             });
 
+            if (password) {
+                const bcrypt = require('bcryptjs');
+                driver.password = await bcrypt.hash(password, 10);
+            }
+
             await driver.save();
 
             // Cleanup OTP if used
             if (!googleToken || googleToken === 'null') {
                 const OTP = require('../models/OTP');
-                await OTP.deleteOne({ email });
+                const query = req.body.email ? { email: req.body.email.trim().toLowerCase() } : { phone: phone.trim() };
+                await OTP.deleteOne(query);
             }
 
             res.status(201).json({ success: true, message: 'Registration submitted successfully. Await admin approval.' });
